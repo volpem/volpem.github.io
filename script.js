@@ -1,1 +1,410 @@
-function _0x5154(){const _0x560d45=['stroke','230859EVikzb','M82\x20;\x20extrusor\x20absoluto','tempCama','getElementById','appendChild','M84\x20;\x20Apagar\x20motores','lineTo','#333','#ff6600','sin','perfil0_val','revokeObjectURL','body','363336gvuRKr','M140\x20S0\x20;\x20Apagar\x20cama','href','click',';\x20version\x200\x20rulo\x20para\x20manu-trideo\x20x\x20matias\x20volpe','forEach','G21\x20;\x20mm','M140\x20S','text/plain','perfil3_val','downloadBtn','height','map','G1\x20X','perfilCanvas',';\x20Comienza\x20espiral','value','7245918jrmvDk','Mitad','Top','clearRect','max','Base','pared','lineWidth','isArray','\x20;\x20Fan\x20de\x20capa\x20','#aaa','floor','removeChild',';LAYER:','join','length','alturaCapa','alturaSlider_val','1831446liejAm','Error\x20al\x20generar\x20el\x20archivo:\x20','strokeStyle','M104\x20S0\x20;\x20Apagar\x20extrusor','6953933JnRvqK','perfil4','distanciaGiro','perfil0','35HEtdSj','getContext','push','diametroGiro','8GwHyJi','fillStyle','createElement','sqrt','camaY','toFixed','Hay\x20parámetros\x20inválidos.\x20Revisá\x20los\x20campos.','G90\x20;\x20coordenadas\x20absolutas','perfil','ceil','perfil1','addEventListener','perfil3','round','354621hspHlD','width','fill','flujo','tempExtrusor','flujoMax','moveTo','#0077ff','camaX','fanCapa','min','pow','cos','perfil4_val','download','arc','beginPath','939602IttfNu','message','textContent','M109\x20S','input','previousElementSibling','createObjectURL'];_0x5154=function(){return _0x560d45;};return _0x5154();}const _0x2d4ffe=_0x2bba;(function(_0x5c1a96,_0x43b168){const _0x4f4a4b=_0x2bba,_0x53f52c=_0x5c1a96();while(!![]){try{const _0x478112=-parseInt(_0x4f4a4b(0x168))/0x1+-parseInt(_0x4f4a4b(0x179))/0x2+-parseInt(_0x4f4a4b(0x11e))/0x3+parseInt(_0x4f4a4b(0x12b))/0x4*(-parseInt(_0x4f4a4b(0x156))/0x5)+parseInt(_0x4f4a4b(0x14e))/0x6+parseInt(_0x4f4a4b(0x152))/0x7+-parseInt(_0x4f4a4b(0x15a))/0x8*(-parseInt(_0x4f4a4b(0x13c))/0x9);if(_0x478112===_0x43b168)break;else _0x53f52c['push'](_0x53f52c['shift']());}catch(_0x503853){_0x53f52c['push'](_0x53f52c['shift']());}}}(_0x5154,0x8a515));const alturaSlider=document[_0x2d4ffe(0x121)]('alturaSlider'),alturaSliderVal=document[_0x2d4ffe(0x121)](_0x2d4ffe(0x14d));function _0x2bba(_0x163d6b,_0x4fa26b){const _0x5154d2=_0x5154();return _0x2bba=function(_0x2bbadf,_0x44c336){_0x2bbadf=_0x2bbadf-0x11a;let _0x55eaa9=_0x5154d2[_0x2bbadf];return _0x55eaa9;},_0x2bba(_0x163d6b,_0x4fa26b);}alturaSlider[_0x2d4ffe(0x165)](_0x2d4ffe(0x11a),function(){const _0x38cb44=_0x2d4ffe;alturaSliderVal['textContent']=alturaSlider[_0x38cb44(0x13b)],drawPerfil();}),alturaSliderVal[_0x2d4ffe(0x17b)]=alturaSlider[_0x2d4ffe(0x13b)];const perfilSliders=[document[_0x2d4ffe(0x121)](_0x2d4ffe(0x153)),document[_0x2d4ffe(0x121)](_0x2d4ffe(0x166)),document[_0x2d4ffe(0x121)]('perfil2'),document['getElementById'](_0x2d4ffe(0x164)),document[_0x2d4ffe(0x121)](_0x2d4ffe(0x155))],perfilLabels=[document['getElementById'](_0x2d4ffe(0x175)),document['getElementById'](_0x2d4ffe(0x134)),document['getElementById']('perfil2_val'),document[_0x2d4ffe(0x121)]('perfil1_val'),document['getElementById'](_0x2d4ffe(0x128))],perfilTitles=[_0x2d4ffe(0x13e),'3/4',_0x2d4ffe(0x13d),'1/4',_0x2d4ffe(0x141)];perfilLabels[_0x2d4ffe(0x130)]((_0x54ded8,_0x4840c7)=>{const _0x37c427=_0x2d4ffe;_0x54ded8[_0x37c427(0x11b)][_0x37c427(0x17b)]=perfilTitles[_0x4840c7];}),perfilLabels['forEach']((_0x4189f8,_0x5a2a8d)=>{const _0x516cee=_0x2d4ffe;_0x4189f8['previousElementSibling'][_0x516cee(0x17b)]=perfilTitles[_0x5a2a8d];}),perfilLabels[_0x2d4ffe(0x130)]((_0x495983,_0x139315)=>{const _0x417056=_0x2d4ffe;_0x495983[_0x417056(0x11b)][_0x417056(0x17b)]=perfilTitles[_0x139315];}),perfilLabels['forEach']((_0x42b619,_0x23e76a)=>{const _0x42568a=_0x2d4ffe;_0x42b619[_0x42568a(0x11b)][_0x42568a(0x17b)]=perfilTitles[_0x23e76a];}),perfilLabels[_0x2d4ffe(0x130)]((_0x33383a,_0x5acb35)=>{const _0x252632=_0x2d4ffe;_0x33383a[_0x252632(0x11b)][_0x252632(0x17b)]=perfilTitles[_0x5acb35];});const perfilCanvas=document[_0x2d4ffe(0x121)](_0x2d4ffe(0x139)),perfilCtx=perfilCanvas[_0x2d4ffe(0x157)]('2d');function drawPerfil(){const _0x236926=_0x2d4ffe;perfilCtx[_0x236926(0x13f)](0x0,0x0,perfilCanvas[_0x236926(0x169)],perfilCanvas[_0x236926(0x136)]);const _0x16e609=perfilCanvas['width'],_0x9ad418=perfilCanvas['height'],_0x32f159=0x14,_0x31c90c=_0x16e609/0x2,_0x36f93b=parseFloat(alturaSlider[_0x236926(0x13b)])||0xc8,_0x11cd96=perfilSliders[_0x236926(0x137)](_0x4bffd9=>parseFloat(_0x4bffd9[_0x236926(0x13b)])),_0x7b5dab=(_0x9ad418-0x2*_0x32f159)/_0x36f93b,_0x4d0c04=Math['max'](..._0x11cd96),_0x31d855=(_0x16e609/0x2-_0x32f159)/(_0x4d0c04/0x2),_0x554163=Math[_0x236926(0x172)](_0x31d855,_0x7b5dab),_0x53ca27=[0x0,0.25,0.5,0.75,0x1][_0x236926(0x137)](_0x203d5f=>_0x203d5f*_0x36f93b),_0x5925f0=_0x53ca27[_0x236926(0x137)](_0x5b1351=>_0x9ad418-_0x32f159-_0x5b1351*_0x554163),_0x5f0e88=_0x11cd96[_0x236926(0x137)]((_0x58242a,_0x50245e)=>({'x':_0x31c90c+_0x58242a/0x2*_0x554163,'y':_0x5925f0[_0x50245e]})),_0x14ad8b=_0x11cd96[_0x236926(0x137)]((_0x2b04e2,_0x54341e)=>({'x':_0x31c90c-_0x2b04e2/0x2*_0x554163,'y':_0x5925f0[_0x54341e]}));perfilCtx[_0x236926(0x150)]=_0x236926(0x146),perfilCtx[_0x236926(0x143)]=0x1,perfilCtx[_0x236926(0x178)](),perfilCtx[_0x236926(0x16e)](_0x31c90c,_0x32f159),perfilCtx['lineTo'](_0x31c90c,_0x9ad418-_0x32f159),perfilCtx[_0x236926(0x11d)]();function _0x37ca4a(_0xab8918,_0x39c495){const _0x243cfc=_0x236926;_0xab8918[_0x243cfc(0x150)]=_0x243cfc(0x16f),_0xab8918['lineWidth']=0x2,_0xab8918[_0x243cfc(0x178)](),_0xab8918[_0x243cfc(0x16e)](_0x39c495[0x0]['x'],_0x39c495[0x0]['y']);const _0x37d8df=[];for(let _0x6a26a3=0x0;_0x6a26a3<_0x39c495[_0x243cfc(0x14b)];_0x6a26a3++){if(_0x6a26a3===0x0)_0x37d8df[_0x6a26a3]={'x':_0x39c495[0x1]['x']-_0x39c495[0x0]['x'],'y':_0x39c495[0x1]['y']-_0x39c495[0x0]['y']};else{if(_0x6a26a3===_0x39c495['length']-0x1)_0x37d8df[_0x6a26a3]={'x':_0x39c495[_0x6a26a3]['x']-_0x39c495[_0x6a26a3-0x1]['x'],'y':_0x39c495[_0x6a26a3]['y']-_0x39c495[_0x6a26a3-0x1]['y']};else _0x37d8df[_0x6a26a3]={'x':(_0x39c495[_0x6a26a3+0x1]['x']-_0x39c495[_0x6a26a3-0x1]['x'])/0x2,'y':(_0x39c495[_0x6a26a3+0x1]['y']-_0x39c495[_0x6a26a3-0x1]['y'])/0x2};}}for(let _0xa28667=0x0;_0xa28667<_0x39c495[_0x243cfc(0x14b)]-0x1;_0xa28667++){const _0x427170=_0x39c495[_0xa28667],_0xc08898=_0x39c495[_0xa28667+0x1],_0xf6fa14=_0x37d8df[_0xa28667],_0x2c8d4e=_0x37d8df[_0xa28667+0x1];for(let _0x55384a=0x0;_0x55384a<=0x1;_0x55384a+=0.05){const _0x177d80=0x2*_0x55384a*_0x55384a*_0x55384a-0x3*_0x55384a*_0x55384a+0x1,_0x33313a=_0x55384a*_0x55384a*_0x55384a-0x2*_0x55384a*_0x55384a+_0x55384a,_0x46deb8=-0x2*_0x55384a*_0x55384a*_0x55384a+0x3*_0x55384a*_0x55384a,_0x4862d4=_0x55384a*_0x55384a*_0x55384a-_0x55384a*_0x55384a,_0xc4dce0=_0x177d80*_0x427170['x']+_0x33313a*_0xf6fa14['x']+_0x46deb8*_0xc08898['x']+_0x4862d4*_0x2c8d4e['x'],_0x397a5a=_0x177d80*_0x427170['y']+_0x33313a*_0xf6fa14['y']+_0x46deb8*_0xc08898['y']+_0x4862d4*_0x2c8d4e['y'];if(_0x55384a===0x0)_0xab8918[_0x243cfc(0x124)](_0xc4dce0,_0x397a5a);else _0xab8918[_0x243cfc(0x124)](_0xc4dce0,_0x397a5a);}}_0xab8918['stroke']();}_0x37ca4a(perfilCtx,_0x5f0e88),_0x37ca4a(perfilCtx,_0x14ad8b);for(let _0x19d933=0x0;_0x19d933<_0x5f0e88[_0x236926(0x14b)];_0x19d933++){perfilCtx[_0x236926(0x178)](),perfilCtx[_0x236926(0x177)](_0x5f0e88[_0x19d933]['x'],_0x5f0e88[_0x19d933]['y'],0x4,0x0,0x2*Math['PI']),perfilCtx['fillStyle']=_0x236926(0x126),perfilCtx[_0x236926(0x16a)](),perfilCtx[_0x236926(0x150)]=_0x236926(0x125),perfilCtx[_0x236926(0x11d)](),perfilCtx[_0x236926(0x178)](),perfilCtx[_0x236926(0x177)](_0x14ad8b[_0x19d933]['x'],_0x14ad8b[_0x19d933]['y'],0x4,0x0,0x2*Math['PI']),perfilCtx[_0x236926(0x15b)]=_0x236926(0x126),perfilCtx[_0x236926(0x16a)](),perfilCtx[_0x236926(0x150)]=_0x236926(0x125),perfilCtx[_0x236926(0x11d)]();}}perfilSliders[_0x2d4ffe(0x130)]((_0x53f869,_0xe67c42)=>{const _0x14a548=_0x2d4ffe;_0x53f869[_0x14a548(0x165)](_0x14a548(0x11a),function(){const _0xcbaaa8=_0x14a548;perfilLabels[_0xe67c42][_0xcbaaa8(0x17b)]=_0x53f869[_0xcbaaa8(0x13b)],drawPerfil();});}),drawPerfil();function getParams(){const _0x4ba2cf=_0x2d4ffe;return{'altura':parseFloat(alturaSlider[_0x4ba2cf(0x13b)]),'pared':parseFloat(document[_0x4ba2cf(0x121)](_0x4ba2cf(0x142))[_0x4ba2cf(0x13b)]),'camaX':parseFloat(document[_0x4ba2cf(0x121)](_0x4ba2cf(0x170))[_0x4ba2cf(0x13b)]),'camaY':parseFloat(document[_0x4ba2cf(0x121)](_0x4ba2cf(0x15e))['value']),'alturaCapa':parseFloat(document[_0x4ba2cf(0x121)]('alturaCapa')[_0x4ba2cf(0x13b)]),'tempExtrusor':parseInt(document[_0x4ba2cf(0x121)](_0x4ba2cf(0x16c))[_0x4ba2cf(0x13b)]),'tempCama':parseInt(document['getElementById'](_0x4ba2cf(0x120))[_0x4ba2cf(0x13b)]),'flujo':parseFloat(document[_0x4ba2cf(0x121)](_0x4ba2cf(0x16b))[_0x4ba2cf(0x13b)])/0x64,'flujoMax':parseFloat(document[_0x4ba2cf(0x121)]('flujoMax')['value']),'fanCapa':parseInt(document[_0x4ba2cf(0x121)]('fanCapa')[_0x4ba2cf(0x13b)]),'perfil':perfilSliders[_0x4ba2cf(0x137)](_0x3a0003=>parseFloat(_0x3a0003[_0x4ba2cf(0x13b)])),'distanciaGiro':parseFloat(document[_0x4ba2cf(0x121)]('distanciaGiro')['value'])||0x32,'diametroGiro':parseFloat(document[_0x4ba2cf(0x121)](_0x4ba2cf(0x159))['value'])||0x5};}function validateParams(_0x4afde0){const _0x16bc9c=_0x2d4ffe,_0x141410=['altura',_0x16bc9c(0x142),_0x16bc9c(0x170),'camaY','alturaCapa','tempExtrusor',_0x16bc9c(0x120),'flujo'];for(const _0xebd1e6 of _0x141410){if(!isFinite(_0x4afde0[_0xebd1e6]))return![];}if(!_0x4afde0[_0x16bc9c(0x162)]||!Array[_0x16bc9c(0x144)](_0x4afde0[_0x16bc9c(0x162)]))return![];for(const _0xff788f of _0x4afde0[_0x16bc9c(0x162)]){if(!isFinite(_0xff788f)||_0xff788f<=0x0)return![];}return!![];}document[_0x2d4ffe(0x121)](_0x2d4ffe(0x135))[_0x2d4ffe(0x165)](_0x2d4ffe(0x12e),function(){const _0x406f73=_0x2d4ffe,_0x4b926b=getParams();if(!validateParams(_0x4b926b)){alert(_0x406f73(0x160));return;}const _0x449d21=_0x4b926b['altura'],_0x532aa8=_0x4b926b[_0x406f73(0x142)],_0x5d0b89=_0x4b926b[_0x406f73(0x170)],_0x42af13=_0x4b926b[_0x406f73(0x15e)],_0x11e56d=_0x4b926b['alturaCapa'],_0x577faf=_0x4b926b[_0x406f73(0x16c)],_0x3f312c=_0x4b926b[_0x406f73(0x120)],_0x553e1e=_0x4b926b[_0x406f73(0x16b)],_0x486cb7=_0x5d0b89/0x2,_0x219628=_0x42af13/0x2,_0x467584=0.5,_0x9bbb2a=1.75,_0x5dcdac=Math['PI']*Math[_0x406f73(0x173)](_0x9bbb2a/0x2,0x2),_0x6f0844=0x186a0,_0x78abfd=0.01,_0xb9171e=_0x11e56d*_0x78abfd/(0x2*Math['PI']),_0x1a5707=[];let _0x5589c7=0x0;_0x1a5707[_0x406f73(0x158)](_0x406f73(0x131)),_0x1a5707['push'](_0x406f73(0x161)),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x11f)),_0x1a5707['push']('G92\x20E0'),_0x1a5707[_0x406f73(0x158)]('G28\x20;\x20Auto\x20home'),_0x1a5707['push']('G29\x20;\x20Auto\x20nivelación\x20de\x20cama'),_0x1a5707[_0x406f73(0x158)]('M104\x20S'+_0x577faf),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x132)+_0x3f312c),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x17c)+_0x577faf),_0x1a5707[_0x406f73(0x158)]('M190\x20S'+_0x3f312c);const _0x364c57=Math[_0x406f73(0x167)](Math[_0x406f73(0x140)](0x0,Math[_0x406f73(0x172)](0xff,_0x4b926b[_0x406f73(0x171)]*2.55)));let _0x3a5461=![];_0x1a5707[_0x406f73(0x158)](_0x406f73(0x13a));let _0x92cb20=0x0,_0x405ea7=_0x486cb7+_0x4b926b['perfil'][0x0]/0x2,_0x11e9fc=_0x219628;const _0x2acf5f=Math[_0x406f73(0x163)](_0x449d21/_0xb9171e);function _0x5e4b04(_0x12ab50){const _0x39d513=_0x406f73,_0x1a6793=_0x4b926b[_0x39d513(0x162)],_0x9856ca=_0x449d21,_0x277a75=[0x0,0.25,0.5,0.75,0x1],_0x133ea9=_0x277a75[_0x39d513(0x137)]((_0x306632,_0x463bb4)=>({'z':_0x306632*_0x9856ca,'d':_0x1a6793[_0x463bb4]}));let _0x50296b=0x0;while(_0x50296b<_0x133ea9[_0x39d513(0x14b)]-0x1&&_0x12ab50>_0x133ea9[_0x50296b+0x1]['z'])_0x50296b++;const _0x54ef17=_0x133ea9[Math[_0x39d513(0x140)](_0x50296b-0x1,0x0)],_0x38c2ab=_0x133ea9[_0x50296b],_0x52df14=_0x133ea9[Math[_0x39d513(0x172)](_0x50296b+0x1,_0x133ea9[_0x39d513(0x14b)]-0x1)],_0x1288d7=_0x133ea9[Math['min'](_0x50296b+0x2,_0x133ea9[_0x39d513(0x14b)]-0x1)],_0x1245f3=(_0x12ab50-_0x38c2ab['z'])/(_0x52df14['z']-_0x38c2ab['z']);function _0x2eafb1(_0x331bc2,_0x18bb95,_0x373225,_0x2d81a1,_0x27ee7c){return 0.5*(0x2*_0x18bb95['d']+(-_0x331bc2['d']+_0x373225['d'])*_0x27ee7c+(0x2*_0x331bc2['d']-0x5*_0x18bb95['d']+0x4*_0x373225['d']-_0x2d81a1['d'])*_0x27ee7c*_0x27ee7c+(-_0x331bc2['d']+0x3*_0x18bb95['d']-0x3*_0x373225['d']+_0x2d81a1['d'])*_0x27ee7c*_0x27ee7c*_0x27ee7c);}return _0x2eafb1(_0x54ef17,_0x38c2ab,_0x52df14,_0x1288d7,_0x1245f3);}let _0x232b45=-0x1,_0x1b6097=0x0;for(let _0x1e4149=0x0;_0x1e4149<=_0x2acf5f;_0x1e4149++){_0x92cb20+=_0x78abfd;const _0x1957f6=_0x1e4149*_0xb9171e,_0x58f5b0=_0x5e4b04(_0x1957f6),_0x186e30=_0x58f5b0/0x2,_0x1a87bd=_0x486cb7+_0x186e30*Math['cos'](_0x92cb20),_0x485a33=_0x219628+_0x186e30*Math[_0x406f73(0x127)](_0x92cb20),_0x335bed=_0x1a87bd-_0x405ea7,_0x5e59c5=_0x485a33-_0x11e9fc,_0x297cde=Math[_0x406f73(0x15d)](_0x335bed*_0x335bed+_0x5e59c5*_0x5e59c5),_0xe738d1=Math[_0x406f73(0x15d)](_0x297cde*_0x297cde+_0xb9171e*_0xb9171e);_0x1b6097+=_0xe738d1;const _0x24c09d=_0x1b6097/_0x4b926b[_0x406f73(0x154)]*0x2*Math['PI'],_0x4abaca=_0x4b926b[_0x406f73(0x159)]/0x2,_0x639915=_0x1a87bd+_0x4abaca*Math[_0x406f73(0x174)](_0x24c09d),_0x5caec2=_0x485a33+_0x4abaca*Math[_0x406f73(0x127)](_0x24c09d),_0x2d9821=_0x639915-_0x405ea7,_0x2e1447=_0x5caec2-_0x11e9fc,_0x3f7d45=Math[_0x406f73(0x15d)](_0x2d9821*_0x2d9821+_0x2e1447*_0x2e1447),_0x24e824=Math['sqrt'](_0x3f7d45*_0x3f7d45+_0xb9171e*_0xb9171e);let _0x1e8ae1=0x14;if(_0x4b926b[_0x406f73(0x142)]>0x0&&_0x4b926b[_0x406f73(0x14c)]>0x0&&_0x4b926b[_0x406f73(0x16b)]>0x0){_0x1e8ae1=_0x4b926b[_0x406f73(0x16d)]/(_0x4b926b[_0x406f73(0x142)]*_0x4b926b[_0x406f73(0x14c)]*_0x4b926b[_0x406f73(0x16b)]);if(!isFinite(_0x1e8ae1)||_0x1e8ae1<=0x0)_0x1e8ae1=0x5;}const _0x1d900b=Math['round'](_0x1e8ae1*0x3c),_0x22733f=_0x4b926b['pared']*_0x4b926b[_0x406f73(0x14c)]*_0x24e824*_0x4b926b[_0x406f73(0x16b)],_0x405040=_0x22733f/_0x5dcdac;_0x5589c7+=_0x405040;const _0x166979=Math[_0x406f73(0x147)](_0x1957f6/_0x4b926b[_0x406f73(0x14c)]);_0x166979!==_0x232b45&&(_0x1a5707[_0x406f73(0x158)](_0x406f73(0x149)+_0x166979),_0x232b45=_0x166979),!_0x3a5461&&_0x1957f6>0.5&&(_0x1a5707['push']('M106\x20S'+_0x364c57+_0x406f73(0x145)+_0x4b926b[_0x406f73(0x171)]+'%'),_0x3a5461=!![]),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x138)+_0x639915[_0x406f73(0x15f)](0x3)+'\x20Y'+_0x5caec2[_0x406f73(0x15f)](0x3)+'\x20Z'+_0x1957f6[_0x406f73(0x15f)](0x3)+'\x20E'+_0x5589c7[_0x406f73(0x15f)](0x5)+'\x20F'+_0x1d900b),_0x405ea7=_0x639915,_0x11e9fc=_0x5caec2;}_0x1a5707[_0x406f73(0x158)](';\x20Fin\x20del\x20código'),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x151)),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x12c)),_0x1a5707['push'](_0x406f73(0x123)),_0x1a5707[_0x406f73(0x158)](_0x406f73(0x12f));try{const _0x40e334=_0x1a5707[_0x406f73(0x14a)]('\x0a'),_0x3bb83f=new Blob([_0x40e334],{'type':_0x406f73(0x133)}),_0x2b7602=document[_0x406f73(0x15c)]('a');_0x2b7602[_0x406f73(0x12d)]=URL[_0x406f73(0x11c)](_0x3bb83f),_0x2b7602[_0x406f73(0x176)]='vase_mode.gcode',document['body'][_0x406f73(0x122)](_0x2b7602),_0x2b7602[_0x406f73(0x12e)](),document[_0x406f73(0x12a)][_0x406f73(0x148)](_0x2b7602),setTimeout(()=>URL[_0x406f73(0x129)](_0x2b7602[_0x406f73(0x12d)]),0x64);}catch(_0x34de93){alert(_0x406f73(0x14f)+_0x34de93[_0x406f73(0x17a)]);}});
+
+// --- Sliders para perfil de revolución ---
+// Slider vertical de altura
+const alturaSlider = document.getElementById('alturaSlider');
+const alturaSliderVal = document.getElementById('alturaSlider_val');
+
+// El valor de altura se toma solo del slider
+alturaSlider.addEventListener('input', function() {
+  alturaSliderVal.textContent = alturaSlider.value;
+  drawPerfil();
+});
+// Inicializar valor
+alturaSliderVal.textContent = alturaSlider.value;
+const perfilSliders = [
+  document.getElementById('perfil4'),
+  document.getElementById('perfil3'),
+  document.getElementById('perfil2'),
+  document.getElementById('perfil1'),
+  document.getElementById('perfil0')
+];
+const perfilLabels = [
+  document.getElementById('perfil4_val'),
+  document.getElementById('perfil3_val'),
+  document.getElementById('perfil2_val'),
+  document.getElementById('perfil1_val'),
+  document.getElementById('perfil0_val')
+];
+
+const perfilTitles = ['Top', '3/4', 'Mitad', '1/4', 'Base'];
+
+// Actualizar los subtítulos en el DOM al cargar
+perfilLabels.forEach((label, i) => {
+  label.previousElementSibling.textContent = perfilTitles[i];
+});
+// Actualizar los subtítulos en el DOM al cargar
+perfilLabels.forEach((label, i) => {
+  label.previousElementSibling.textContent = perfilTitles[i];
+});
+// Actualizar los subtítulos en el DOM al cargar
+perfilLabels.forEach((label, i) => {
+  label.previousElementSibling.textContent = perfilTitles[i];
+});
+// Actualizar los subtítulos en el DOM al cargar
+perfilLabels.forEach((label, i) => {
+  label.previousElementSibling.textContent = perfilTitles[i];
+});
+perfilLabels.forEach((label, i) => {
+  label.previousElementSibling.textContent = perfilTitles[i];
+});
+const perfilCanvas = document.getElementById('perfilCanvas');
+const perfilCtx = perfilCanvas.getContext('2d');
+
+function drawPerfil() {
+  perfilCtx.clearRect(0, 0, perfilCanvas.width, perfilCanvas.height);
+  // Parámetros de canvas
+  const canvasW = perfilCanvas.width;
+  const canvasH = perfilCanvas.height;
+  const margen = 20;
+  const cx = canvasW / 2;
+  // Altura total en mm desde el slider
+  const alturaTotal = parseFloat(alturaSlider.value) || 200;
+  // Diámetros del perfil
+  const diametros = perfilSliders.map(s => parseFloat(s.value));
+  // Escala vertical: ajusta para usar todo el canvas menos márgenes
+  const escalaY = (canvasH - 2 * margen) / alturaTotal;
+  // Escala horizontal: ajusta para que el diámetro máximo no se salga del canvas
+  const diametroMax = Math.max(...diametros);
+  const escalaX = (canvasW/2 - margen) / (diametroMax/2);
+  // Usar la escala mínima para que el perfil siempre quepa en el canvas
+  const escala = Math.min(escalaX, escalaY);
+  // Alturas en mm para cada fracción
+  const alturasMM = [0, 0.25, 0.5, 0.75, 1].map(f => f * alturaTotal);
+  // Alturas en px (canvas, base abajo)
+  const alturas = alturasMM.map(h => canvasH - margen - h * escala);
+  // Perfil derecho
+  const puntosDer = diametros.map((d, i) => ({
+    x: cx + (d / 2) * escala,
+    y: alturas[i]
+  }));
+  // Perfil izquierdo (simétrico)
+  const puntosIzq = diametros.map((d, i) => ({
+    x: cx - (d / 2) * escala,
+    y: alturas[i]
+  }));
+
+  // Cuadrícula de escala: líneas cada 10mm, etiquetas cada 50mm, siempre ocupando todo el canvas
+  perfilCtx.save();
+  perfilCtx.setLineDash([]); // líneas sólidas
+  const gridStep = 10;
+  const labelStep = 50;
+  const gridYCount = Math.floor((canvasH - 2 * margen) / (gridStep * escala));
+  // Líneas horizontales (altura)
+  for (let i = 0; i <= gridYCount; i++) {
+    const mm = i * gridStep;
+    const y = canvasH - margen - mm * escala;
+    perfilCtx.beginPath();
+    perfilCtx.moveTo(margen, y);
+    perfilCtx.lineTo(canvasW - margen, y);
+    if (mm % labelStep === 0) {
+      perfilCtx.strokeStyle = '#aaa';
+      perfilCtx.lineWidth = 1.2;
+    } else {
+      perfilCtx.strokeStyle = '#ccc';
+      perfilCtx.lineWidth = 0.5;
+    }
+    perfilCtx.stroke();
+    if (mm % labelStep === 0) {
+      perfilCtx.font = '12px Arial';
+      perfilCtx.fillStyle = '#888';
+      perfilCtx.fillText(`${mm}mm`, 2, y - 2);
+    }
+  }
+  // Líneas verticales (diámetro)
+  const gridXCount = Math.floor((canvasW - 2 * margen) / (gridStep * escala));
+  for (let i = -gridXCount/2; i <= gridXCount/2; i++) {
+    const mm = i * gridStep;
+    const x = cx + mm * escala;
+    perfilCtx.beginPath();
+    perfilCtx.moveTo(x, margen);
+    perfilCtx.lineTo(x, canvasH - margen);
+    if (mm % labelStep === 0 && mm !== 0) {
+      perfilCtx.strokeStyle = '#aaa';
+      perfilCtx.lineWidth = 1.2;
+    } else {
+      perfilCtx.strokeStyle = '#ccc';
+      perfilCtx.lineWidth = 0.5;
+    }
+    perfilCtx.stroke();
+    if (mm % labelStep === 0 && mm !== 0) {
+      perfilCtx.font = '12px Arial';
+      perfilCtx.fillStyle = '#888';
+      perfilCtx.fillText(`${mm}mm`, x - 14, canvasH - 4);
+    }
+  }
+  perfilCtx.restore();
+
+  // Eje vertical al centro en verde
+  perfilCtx.save();
+  perfilCtx.strokeStyle = '#0a0';
+  perfilCtx.lineWidth = 2;
+  perfilCtx.beginPath();
+  perfilCtx.moveTo(cx, margen);
+  perfilCtx.lineTo(cx, canvasH - margen);
+  perfilCtx.stroke();
+  perfilCtx.restore();
+
+  // Eje vertical al centro
+  perfilCtx.strokeStyle = '#aaa';
+  perfilCtx.lineWidth = 1;
+  perfilCtx.beginPath();
+  perfilCtx.moveTo(cx, margen);
+  perfilCtx.lineTo(cx, canvasH - margen);
+  perfilCtx.stroke();
+
+  // Función para dibujar una curva Hermite tangente en los puntos
+  function drawHermite(ctx, pts) {
+    ctx.strokeStyle = '#0077ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    // Calcular tangentes
+    const tangentes = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (i === 0)
+        tangentes[i] = { x: (pts[1].x - pts[0].x), y: (pts[1].y - pts[0].y) };
+      else if (i === pts.length - 1)
+        tangentes[i] = { x: (pts[i].x - pts[i-1].x), y: (pts[i].y - pts[i-1].y) };
+      else
+        tangentes[i] = { x: (pts[i+1].x - pts[i-1].x)/2, y: (pts[i+1].y - pts[i-1].y)/2 };
+    }
+    // Hermite interpolation
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i];
+      const p1 = pts[i+1];
+      const m0 = tangentes[i];
+      const m1 = tangentes[i+1];
+      for (let t = 0; t <= 1; t += 0.05) {
+        const h00 = 2*t*t*t - 3*t*t + 1;
+        const h10 = t*t*t - 2*t*t + t;
+        const h01 = -2*t*t*t + 3*t*t;
+        const h11 = t*t*t - t*t;
+        const x = h00*p0.x + h10*m0.x + h01*p1.x + h11*m1.x;
+        const y = h00*p0.y + h10*m0.y + h01*p1.y + h11*m1.y;
+        if (t === 0) ctx.lineTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  // Curva derecha (Hermite)
+  drawHermite(perfilCtx, puntosDer);
+  // Curva izquierda (Hermite)
+  drawHermite(perfilCtx, puntosIzq);
+  // Dibujar puntos
+  for (let i = 0; i < puntosDer.length; i++) {
+    perfilCtx.beginPath();
+    perfilCtx.arc(puntosDer[i].x, puntosDer[i].y, 4, 0, 2 * Math.PI);
+    perfilCtx.fillStyle = '#ff6600';
+    perfilCtx.fill();
+    perfilCtx.strokeStyle = '#333';
+    perfilCtx.stroke();
+    perfilCtx.beginPath();
+    perfilCtx.arc(puntosIzq[i].x, puntosIzq[i].y, 4, 0, 2 * Math.PI);
+    perfilCtx.fillStyle = '#ff6600';
+    perfilCtx.fill();
+    perfilCtx.strokeStyle = '#333';
+    perfilCtx.stroke();
+  }
+}
+
+perfilSliders.forEach((slider, i) => {
+  slider.addEventListener('input', function() {
+    perfilLabels[i].textContent = slider.value;
+    drawPerfil();
+  });
+});
+
+drawPerfil();
+
+function getParams() {
+  return {
+    altura: parseFloat(alturaSlider.value),
+    pared: parseFloat(document.getElementById("pared").value),
+    camaX: parseFloat(document.getElementById("camaX").value),
+    camaY: parseFloat(document.getElementById("camaY").value),
+    alturaCapa: parseFloat(document.getElementById("alturaCapa").value),
+    tempExtrusor: parseInt(document.getElementById("tempExtrusor").value),
+    tempCama: parseInt(document.getElementById("tempCama").value),
+    flujo: parseFloat(document.getElementById("flujo").value) / 100,
+    flujoMax: parseFloat(document.getElementById("flujoMax").value),
+    fanCapa: parseInt(document.getElementById("fanCapa").value),
+    // Guardar el diámetro en cada altura
+    perfil: perfilSliders.map(s => parseFloat(s.value)),
+    distanciaGiro: parseFloat(document.getElementById("distanciaGiro").value) || 50,
+    diametroGiro: parseFloat(document.getElementById("diametroGiro").value) || 5
+  };
+}
+
+function validateParams(params) {
+  // Validar solo los parámetros numéricos principales, no el array perfil
+  const keys = [
+    'altura', 'pared', 'camaX', 'camaY', 'alturaCapa',
+    'tempExtrusor', 'tempCama', 'flujo'
+  ];
+  for (const k of keys) {
+    if (!isFinite(params[k])) return false;
+  }
+  // Validar que todos los diámetros del perfil sean válidos y positivos
+  if (!params.perfil || !Array.isArray(params.perfil)) return false;
+  for (const d of params.perfil) {
+    if (!isFinite(d) || d <= 0) return false;
+  }
+  return true;
+}
+
+
+document.getElementById("downloadBtn").addEventListener("click", function() {
+  const params = getParams();
+  if (!validateParams(params)) {
+    alert("Hay parámetros inválidos. Revisá los campos.");
+    return;
+  }
+
+  // Cálculos base
+  const altura = params.altura;
+  const pared = params.pared;
+  const camaX = params.camaX;
+  const camaY = params.camaY;
+  const alturaCapa = params.alturaCapa;
+  const tempExtrusor = params.tempExtrusor;
+  const tempCama = params.tempCama;
+  const flujo = params.flujo;
+
+  const offsetX = camaX / 2;
+  const offsetY = camaY / 2;
+  const pasoXY = 0.5;
+  const diamFilamento = 1.75;
+  const areaFilamento = Math.PI * Math.pow(diamFilamento / 2, 2);
+  const maxPuntos = 100000;
+  const pasoAngulo = 0.01; // radianes por paso
+  const subidaPorPaso = alturaCapa * pasoAngulo / (2 * Math.PI); // avance en Z por paso
+
+  const gcode = [];
+  let eTotal = 0;
+
+  // Encabezado G-code
+  gcode.push("G21 ; mm");
+  gcode.push("G90 ; coordenadas absolutas");
+  gcode.push("M82 ; extrusor absoluto");
+  gcode.push("G92 E0");
+  gcode.push("G28 ; Auto home");
+  gcode.push("G29 ; Auto nivelación de cama");
+  gcode.push(`M104 S${tempExtrusor}`);
+  gcode.push(`M140 S${tempCama}`);
+  gcode.push(`M109 S${tempExtrusor}`);
+  gcode.push(`M190 S${tempCama}`);
+  // Fan de capa (M106 Sxxx)
+  const fanPWM = Math.round(Math.max(0, Math.min(255, params.fanCapa * 2.55)));
+  let fanActivated = false;
+  gcode.push("; Comienza espiral");
+
+  // Inicialización
+  let angulo = 0;
+  let xPrev = offsetX + params.perfil[0] / 2;
+  let yPrev = offsetY;
+  const pasos = Math.ceil(altura / subidaPorPaso);
+
+  // Interpolación de diámetro usando Catmull-Rom spline
+  function interpDiametroSpline(z) {
+    const perfil = params.perfil;
+    const hReal = altura;
+    const fracciones = [0, 0.25, 0.5, 0.75, 1];
+    const puntos = fracciones.map((f, i) => ({ z: f * hReal, d: perfil[i] }));
+    let i = 0;
+    while (i < puntos.length - 1 && z > puntos[i+1].z) i++;
+    const p0 = puntos[Math.max(i-1, 0)];
+    const p1 = puntos[i];
+    const p2 = puntos[Math.min(i+1, puntos.length-1)];
+    const p3 = puntos[Math.min(i+2, puntos.length-1)];
+    const t = (z - p1.z) / (p2.z - p1.z);
+    function catmullRom(p0, p1, p2, p3, t) {
+      return 0.5 * ((2 * p1.d) +
+        (-p0.d + p2.d) * t +
+        (2*p0.d - 5*p1.d + 4*p2.d - p3.d) * t * t +
+        (-p0.d + 3*p1.d - 3*p2.d + p3.d) * t * t * t);
+    }
+    return catmullRom(p0, p1, p2, p3, t);
+  }
+
+  // Espiral con perfil
+  let lastLayer = -1;
+  let distanciaAcumulada = 0;
+  for (let i = 0; i <= pasos; i++) {
+    angulo += pasoAngulo;
+    const z = i * subidaPorPaso;
+    const diametroActual = interpDiametroSpline(z);
+    const radio = diametroActual / 2;
+    // Centro helicoidal
+    const cx = offsetX + radio * Math.cos(angulo);
+    const cy = offsetY + radio * Math.sin(angulo);
+    // Calcular distancia recorrida sobre la trayectoria helicoidal
+    const dxTray = cx - xPrev;
+    const dyTray = cy - yPrev;
+    const dxyTray = Math.sqrt(dxTray * dxTray + dyTray * dyTray);
+    const distanciaTray = Math.sqrt(dxyTray * dxyTray + subidaPorPaso * subidaPorPaso);
+    distanciaAcumulada += distanciaTray;
+    // Ángulo de giro: una vuelta cada 'distanciaGiro' mm recorridos (sentido horario)
+    const phase = (distanciaAcumulada / params.distanciaGiro) * 2 * Math.PI;
+    const radioGiro = params.diametroGiro / 2;
+    // Posición final: círculo perfecto alrededor del centro helicoidal
+    const x = cx + radioGiro * Math.cos(phase);
+    const y = cy + radioGiro * Math.sin(phase);
+
+    const dx = x - xPrev;
+    const dy = y - yPrev;
+    const dxy = Math.sqrt(dx * dx + dy * dy);
+    const distancia = Math.sqrt(dxy * dxy + subidaPorPaso * subidaPorPaso);
+
+    // Calcular velocidad máxima permitida para no superar el flujo
+    let velocidad = 20; // valor base en mm/s
+    if (params.pared > 0 && params.alturaCapa > 0 && params.flujo > 0) {
+      velocidad = params.flujoMax / (params.pared * params.alturaCapa * params.flujo);
+      if (!isFinite(velocidad) || velocidad <= 0) velocidad = 5;
+    }
+    const F = Math.round(velocidad * 60); // mm/min
+
+    const volumen = params.pared * params.alturaCapa * distancia * params.flujo;
+    const eStep = volumen / areaFilamento;
+    eTotal += eStep;
+
+    // Comentario de capa para PrusaSlicer
+    const layer = Math.floor(z / params.alturaCapa);
+    if (layer !== lastLayer) {
+      gcode.push(`;LAYER:${layer}`);
+      lastLayer = layer;
+    }
+    // Activar fan solo en la primera capa por encima de 0.5mm
+    if (!fanActivated && z > 0.5) {
+      gcode.push(`M106 S${fanPWM} ; Fan de capa ${params.fanCapa}%`);
+      fanActivated = true;
+    }
+
+    gcode.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${z.toFixed(3)} E${eTotal.toFixed(5)} F${F}`);
+
+    xPrev = x;
+    yPrev = y;
+  }
+
+  gcode.push("; Fin del código");
+  gcode.push("M104 S0 ; Apagar extrusor");
+  gcode.push("M140 S0 ; Apagar cama");
+  gcode.push("M84 ; Apagar motores");
+
+  // Descargar archivo
+  try {
+    const contenido = gcode.join("\n");
+    const blob = new Blob([contenido], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "vase_mode.gcode";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+  } catch (err) {
+    alert("Error al generar el archivo: " + err.message);
+  }
+});
