@@ -232,7 +232,8 @@ function getParams() {
     fanCapa: parseInt(document.getElementById("fanCapa").value),
     // Guardar el diámetro en cada altura
     perfil: perfilSliders.map(s => parseFloat(s.value)),
-    distanciaGiro: parseFloat(document.getElementById("distanciaGiro").value) || 50,
+    vueltasTranslacion: parseFloat(document.getElementById("vueltasTranslacion").value) || 1,
+    moduloDesfase: parseFloat(document.getElementById("moduloDesfase").value) || 0,
     diametroGiro: parseFloat(document.getElementById("diametroGiro").value) || 5
   };
 }
@@ -345,9 +346,24 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     const dxyTray = Math.sqrt(dxTray * dxTray + dyTray * dyTray);
     const distanciaTray = Math.sqrt(dxyTray * dxyTray + subidaPorPaso * subidaPorPaso);
     distanciaAcumulada += distanciaTray;
-    // Ángulo de giro: una vuelta cada 'distanciaGiro' mm recorridos (sentido horario)
-    const phase = (distanciaAcumulada / params.distanciaGiro) * 2 * Math.PI;
+    // Ángulo de giro: vueltasTranslacion vueltas por capa (sentido invertido)
+    const vueltasPorCapa = params.vueltasTranslacion;
+    const moduloDesfase = params.moduloDesfase;
     const radioGiro = params.diametroGiro / 2;
+    // Progreso dentro de la capa (0 a 1)
+    const zRel = (z % params.alturaCapa) / params.alturaCapa;
+    // Número de vuelta actual en la capa (sentido invertido)
+    const vueltaActual = -vueltasPorCapa * zRel;
+    // Ángulo base de la vuelta actual + desfase interpolado entre capas
+    const layer = Math.floor(z / params.alturaCapa);
+    let phase = vueltaActual * 2 * Math.PI;
+    if (moduloDesfase !== 0) {
+      // Interpolación suave del desfase entre capas
+      const desfasePrev = (moduloDesfase / vueltasPorCapa) * 2 * Math.PI * (layer - 1);
+      const desfaseCurr = (moduloDesfase / vueltasPorCapa) * 2 * Math.PI * layer;
+      const desfaseInterp = desfasePrev + (desfaseCurr - desfasePrev) * zRel;
+      phase += desfaseInterp;
+    }
     // Posición final: círculo perfecto alrededor del centro helicoidal
     const x = cx + radioGiro * Math.cos(phase);
     const y = cy + radioGiro * Math.sin(phase);
@@ -370,7 +386,6 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     eTotal += eStep;
 
     // Comentario de capa para PrusaSlicer
-    const layer = Math.floor(z / params.alturaCapa);
     if (layer !== lastLayer) {
       gcode.push(`;LAYER:${layer}`);
       lastLayer = layer;
