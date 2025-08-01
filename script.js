@@ -387,6 +387,7 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
 
     // Comentario de capa para PrusaSlicer
     if (layer !== lastLayer) {
+      gcode.push(`;LAYER_CHANGE`);
       gcode.push(`;LAYER:${layer}`);
       lastLayer = layer;
     }
