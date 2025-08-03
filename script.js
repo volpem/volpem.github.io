@@ -28,27 +28,13 @@ const perfilLabels = [
 
 const perfilTitles = ['Top', '3/4', 'Mitad', '1/4', 'Base'];
 
-// Actualizar los subtítulos en el DOM al cargar
-perfilLabels.forEach((label, i) => {
-  label.previousElementSibling.textContent = perfilTitles[i];
-});
-// Actualizar los subtítulos en el DOM al cargar
-perfilLabels.forEach((label, i) => {
-  label.previousElementSibling.textContent = perfilTitles[i];
-});
-// Actualizar los subtítulos en el DOM al cargar
-perfilLabels.forEach((label, i) => {
-  label.previousElementSibling.textContent = perfilTitles[i];
-});
-// Actualizar los subtítulos en el DOM al cargar
-perfilLabels.forEach((label, i) => {
-  label.previousElementSibling.textContent = perfilTitles[i];
-});
+// Actualizar los subtítulos en el DOM al cargar (solo una vez)
 perfilLabels.forEach((label, i) => {
   label.previousElementSibling.textContent = perfilTitles[i];
 });
 const perfilCanvas = document.getElementById('perfilCanvas');
 const perfilCtx = perfilCanvas.getContext('2d');
+
 
 function drawPerfil() {
   perfilCtx.clearRect(0, 0, perfilCanvas.width, perfilCanvas.height);
@@ -126,10 +112,18 @@ function drawPerfil() {
       perfilCtx.lineWidth = 0.5;
     }
     perfilCtx.stroke();
+    // Etiquetas eje horizontal
     if (mm % labelStep === 0 && mm !== 0) {
       perfilCtx.font = '12px Arial';
       perfilCtx.fillStyle = '#888';
-      perfilCtx.fillText(`${mm}mm`, x - 14, canvasH - 4);
+      // Mostrar siempre el símbolo de diámetro y el valor real
+      let label = `⌀${Math.abs(mm*2)}mm`;
+      let labelWidth = perfilCtx.measureText(label).width;
+      // Limitar la posición para que no se salga del canvas
+      let labelX = x - labelWidth/2;
+      labelX = Math.max(labelX, margen + 2); // margen izquierdo
+      labelX = Math.min(labelX, canvasW - margen - labelWidth - 2); // margen derecho
+      perfilCtx.fillText(label, labelX, canvasH - 4);
     }
   }
   perfilCtx.restore();
@@ -216,7 +210,201 @@ perfilSliders.forEach((slider, i) => {
   });
 });
 
+
 drawPerfil();
+
+// --- Vista superior de las dos primeras capas ---
+const topViewCanvas = document.getElementById('topViewCanvas');
+const topViewCtx = topViewCanvas.getContext('2d');
+
+
+
+function drawTopView() {
+  // Limpiar
+  topViewCtx.clearRect(0, 0, topViewCanvas.width, topViewCanvas.height);
+  // Parámetros
+  const params = getParams();
+  if (!validateParams(params)) return;
+  const {camaX, camaY, alturaCapa, perfil, vueltasTranslacion, moduloDesfase, diametroGiro, altura} = params;
+  // --- Ajuste de zoom dinámico para que la curva siempre llene el canvas ---
+  const margen = 20;
+  const canvasW = topViewCanvas.width;
+  const canvasH = topViewCanvas.height;
+  // Calcular el diámetro máximo real que puede tener la curva en las dos primeras capas
+  // Muestrear todos los puntos de las dos primeras capas para encontrar el radio máximo real
+  let radioMaxReal = 0;
+  const pasoAngulo = 0.01;
+  const subidaPorPaso = alturaCapa * pasoAngulo / (2 * Math.PI);
+  for (let l = 0; l < 2; l++) {
+    const zIni = l * alturaCapa;
+    const zFin = (l+1) * alturaCapa;
+    let angulo = 0;
+    for (let z = zIni; z < zFin; z += subidaPorPaso) {
+      angulo += pasoAngulo;
+      // Interpolar diámetro en z
+      const hReal = altura;
+      const fracciones = [0, 0.25, 0.5, 0.75, 1];
+      const puntos = fracciones.map((f, i) => ({ z: f * hReal, d: perfil[i] }));
+      let i = 0;
+      while (i < puntos.length - 1 && z > puntos[i+1].z) i++;
+      const p0 = puntos[Math.max(i-1, 0)];
+      const p1 = puntos[i];
+      const p2 = puntos[Math.min(i+1, puntos.length-1)];
+      const p3 = puntos[Math.min(i+2, puntos.length-1)];
+      const t = (z - p1.z) / (p2.z - p1.z);
+      function catmullRom(p0, p1, p2, p3, t) {
+        return 0.5 * ((2 * p1.d) +
+          (-p0.d + p2.d) * t +
+          (2*p0.d - 5*p1.d + 4*p2.d - p3.d) * t * t +
+          (-p0.d + 3*p1.d - 3*p2.d + p3.d) * t * t * t);
+      }
+      const diametroActual = catmullRom(p0, p1, p2, p3, t);
+      const radio = diametroActual / 2 + diametroGiro / 2;
+      if (radio > radioMaxReal) radioMaxReal = radio;
+    }
+  }
+  // Escala para que el radio máximo real ocupe el 80% del canvas menos margen
+  const maxR = 0.8 * Math.min(canvasW, canvasH) - margen;
+  const escala = maxR / radioMaxReal;
+  // Centro del círculo en la esquina inferior izquierda del cuadrante visible
+  const cx = margen;
+  const cy = canvasH - margen;
+  // Dibujar cuadrícula y escala (círculo completo, SIEMPRE, aunque no haya dibujo)
+  topViewCtx.save();
+  const gridStep = 10; // mm
+  const labelStep = 50;
+  const radioMaxMM = radioMaxReal;
+  for (let r = 0; r <= radioMaxMM + 50; r += gridStep) {
+    const radPix = r * escala;
+    topViewCtx.beginPath();
+    topViewCtx.arc(cx, cy, radPix, 0, 2*Math.PI);
+    topViewCtx.strokeStyle = (r % labelStep === 0) ? '#aaa' : '#ddd';
+    topViewCtx.lineWidth = (r % labelStep === 0) ? 1.2 : 0.5;
+    topViewCtx.stroke();
+    // Etiquetas
+    if (r % labelStep === 0 && r > 0) {
+      topViewCtx.font = '12px Arial';
+      topViewCtx.fillStyle = '#888';
+      let label = `⌀${r*2}mm`;
+      // Medir ancho del texto
+      let labelWidth = topViewCtx.measureText(label).width;
+      // Posicionar la etiqueta centrada en el ángulo -45°
+      let labelX = cx + radPix * Math.cos(-Math.PI/4) - labelWidth/2;
+      let labelY = cy + radPix * Math.sin(-Math.PI/4) - 4;
+      // Limitar la posición para que no se salga del canvas
+      labelX = Math.max(labelX, 2);
+      labelX = Math.min(labelX, canvasW - labelWidth - 2);
+      topViewCtx.fillText(label, labelX, labelY);
+    }
+  }
+  // Líneas radiales
+  for (let ang = 0; ang < 360; ang += 15) {
+    const rad = ang * Math.PI / 180;
+    const x2 = cx + (radioMaxMM + 50) * escala * Math.cos(rad);
+    const y2 = cy + (radioMaxMM + 50) * escala * Math.sin(rad);
+    topViewCtx.beginPath();
+    topViewCtx.moveTo(cx, cy);
+    topViewCtx.lineTo(x2, y2);
+    topViewCtx.strokeStyle = '#ccc';
+    topViewCtx.lineWidth = 0.7;
+    topViewCtx.stroke();
+  }
+  topViewCtx.restore();
+
+  // Capas a mostrar
+  const layers = [0, 1];
+  const colores = ['#0077ff88', '#ff660088'];
+  // Traza exactamente como el G-code: solo las dos primeras capas, muestreando todos los puntos
+  // (colores ya está declarado arriba)
+  // offsetX y offsetY igual que antes
+  const offsetX = cx;
+  const offsetY = cy;
+  for (let l = 0; l < 2; l++) {
+    const color = colores[l];
+    const zIni = l * alturaCapa;
+    const zFin = (l+1) * alturaCapa;
+    let angulo = 0;
+    let first = true;
+    topViewCtx.save();
+    topViewCtx.strokeStyle = color;
+    topViewCtx.lineWidth = 2;
+    topViewCtx.beginPath();
+    for (let z = zIni; z < zFin; z += subidaPorPaso) {
+      angulo += pasoAngulo;
+      // Interpolar diámetro en z
+      const hReal = altura;
+      const fracciones = [0, 0.25, 0.5, 0.75, 1];
+      const puntos = fracciones.map((f, i) => ({ z: f * hReal, d: perfil[i] }));
+      let i = 0;
+      while (i < puntos.length - 1 && z > puntos[i+1].z) i++;
+      const p0 = puntos[Math.max(i-1, 0)];
+      const p1 = puntos[i];
+      const p2 = puntos[Math.min(i+1, puntos.length-1)];
+      const p3 = puntos[Math.min(i+2, puntos.length-1)];
+      const t = (z - p1.z) / (p2.z - p1.z);
+      function catmullRom(p0, p1, p2, p3, t) {
+        return 0.5 * ((2 * p1.d) +
+          (-p0.d + p2.d) * t +
+          (2*p0.d - 5*p1.d + 4*p2.d - p3.d) * t * t +
+          (-p0.d + 3*p1.d - 3*p2.d + p3.d) * t * t * t);
+      }
+      const diametroActual = catmullRom(p0, p1, p2, p3, t);
+      const radio = diametroActual / 2;
+      const radioGiro = diametroGiro / 2;
+      // Centro helicoidal
+      const cxH = offsetX + Math.cos(angulo) * radio * escala;
+      const cyH = offsetY + Math.sin(angulo) * radio * escala;
+      // Progreso dentro de la capa (0 a 1)
+      const zRel = (z % alturaCapa) / alturaCapa;
+      // Número de vuelta actual en la capa (sentido invertido)
+      const vueltaActual = -vueltasTranslacion * zRel;
+      // Ángulo base de la vuelta actual + desfase interpolado entre capas
+      let phase = vueltaActual * 2 * Math.PI;
+      if (moduloDesfase !== 0) {
+        const desfasePrev = (moduloDesfase / vueltasTranslacion) * 2 * Math.PI * (l - 1);
+        const desfaseCurr = (moduloDesfase / vueltasTranslacion) * 2 * Math.PI * l;
+        const desfaseInterp = desfasePrev + (desfaseCurr - desfasePrev) * zRel;
+        phase += desfaseInterp;
+      }
+      // Posición final: círculo alrededor del centro helicoidal
+      const x = cxH + Math.cos(phase) * radioGiro * escala;
+      const y = cyH + Math.sin(phase) * radioGiro * escala;
+      if (first) { topViewCtx.moveTo(x, y); first = false; }
+      else topViewCtx.lineTo(x, y);
+    }
+    topViewCtx.stroke();
+    topViewCtx.restore();
+  }
+  // Dibujar origen
+  topViewCtx.save();
+  topViewCtx.beginPath();
+  topViewCtx.arc(cx, cy, 3, 0, 2 * Math.PI);
+  topViewCtx.fillStyle = '#222';
+  topViewCtx.fill();
+  topViewCtx.restore();
+}
+
+// Redibujar vista superior cuando cambian parámetros
+function updateAll() {
+  drawPerfil();
+  drawTopView();
+}
+
+// Listeners para sliders y entradas
+perfilSliders.forEach((slider, i) => {
+  slider.addEventListener('input', function() {
+    perfilLabels[i].textContent = slider.value;
+    updateAll();
+  });
+});
+alturaSlider.addEventListener('input', updateAll);
+['pared','alturaCapa','camaX','camaY','tempExtrusor','tempCama','flujo','flujoMax','fanCapa','vueltasTranslacion','moduloDesfase','diametroGiro'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateAll);
+});
+
+// Inicial
+updateAll();
 
 function getParams() {
   return {

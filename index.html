@@ -1,64 +1,147 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      min-width: 100vw;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+      background: #fafbfc;
+    }
+    .main-center {
+      width: 100vw;
+      max-width: 100vw;
+      min-height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 32px;
+      padding-bottom: 16px;
+    }
+    .responsive-grid {
+      width: 100vw;
+      max-width: 100vw;
+      min-width: 100vw;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding-left: 10px;
+      padding-right: 10px;
+      align-items: stretch;
+      justify-items: stretch;
+    }
+    .col {
+      min-width: 0;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+    }
+    @media (max-width: 1200px) {
+      .responsive-grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100vw;
+        min-width: 100vw;
+      }
+    }
+    @media (max-width: 900px) {
+      .responsive-grid {
+        grid-template-columns: 1fr;
+        max-width: 100vw;
+        min-width: 100vw;
+      }
+      .col {
+        width: 100% !important;
+        min-width: 0;
+        max-width: 100vw;
+      }
+    }
+  </style>
   <meta charset="UTF-8">
   <title>Generador G-code - Vase Mode</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="main-center">
-    <h1>Generador de G-code - Vase Mode</h1>
+  <div class="main-center" style="margin: 18px;">
+    <h1 style="text-align:center;">Generador de G-code - Vase Mode</h1>
     <form id="paramForm">
       <!-- Aquí puedes poner controles generales si lo deseas -->
     </form>
     <div class="responsive-grid">
-      <div class="col config-col">
-        <label>Grosor de pared (mm): <input type="number" id="pared" value="0.4" step="0.05"></label>
-        <label>Altura de capa (mm): <input type="number" id="alturaCapa" value="0.3" step="0.05"></label>
-        <label>Tamaño cama X (mm): <input type="number" id="camaX" value="300" step="1"></label>
-        <label>Tamaño cama Y (mm): <input type="number" id="camaY" value="300" step="1"></label>
-        <label>Temperatura extrusor (°C): <input type="number" id="tempExtrusor" value="200" step="1"></label>
-        <label>Temperatura cama (°C): <input type="number" id="tempCama" value="60" step="1"></label>
-        <label>Multiplicador de extrusión (%) <input type="number" id="flujo" value="100" step="1" min="50" max="200"></label>
-        <label>Flujo máximo (mm²/s): <input type="number" id="flujoMax" value="2.4" step="0.1"></label>
-        <label>Fan de capa (%) <input type="number" id="fanCapa" value="100" step="1" min="0" max="100"></label>
-        <label>Vueltas de translación por capa: <input type="number" id="vueltasTranslacion" value="15" step="0.1" min="0.01" max="20"></label>
-        <label>Módulo de rotación entre capas (0-10): <input type="number" id="moduloDesfase" value="2" step="0.01" min="0" max="10"></label>
-        <label>Diámetro giro de translación (mm): <input type="number" id="diametroGiro" value="5" step="0.1" min="0.1" max="50"></label>
+      <div class="col config-col" style="align-items: flex-start; padding: 0 25px;">
+        <h2 style="margin-top:0; margin-bottom:12px; text-align:center; width:100%;">Parámetros</h2>
+        <label style="display:flex; align-items:center; gap:3px;">Grosor de pared (mm): <input type="number" id="pared" value="0.4" step="0.05"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Altura de capa (mm): <input type="number" id="alturaCapa" value="0.3" step="0.05"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Tamaño cama X (mm): <input type="number" id="camaX" value="300" step="1"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Tamaño cama Y (mm): <input type="number" id="camaY" value="300" step="1"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Temperatura extrusor (°C): <input type="number" id="tempExtrusor" value="200" step="1"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Temperatura cama (°C): <input type="number" id="tempCama" value="60" step="1"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Multiplicador de extrusión (%) <input type="number" id="flujo" value="100" step="1" min="50" max="200"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Flujo máximo (mm²/s): <input type="number" id="flujoMax" value="2.4" step="0.1"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Fan de capa (%) <input type="number" id="fanCapa" value="100" step="1" min="0" max="100"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Vueltas de translación por capa: <input type="number" id="vueltasTranslacion" value="15" step="0.1" min="0.01" max="20"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Módulo de rotación entre capas (0-10): <input type="number" id="moduloDesfase" value="2" step="0.01" min="0" max="10"></label>
+        <label style="display:flex; align-items:center; gap:3px;">Diámetro giro de translación (mm): <input type="number" id="diametroGiro" value="5" step="0.1" min="0.1" max="50"></label>
         <button type="button" id="downloadBtn">Descargar G-code</button>
       </div>
-      <div class="col canvas-col" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
-        <div style="width:100%; display:flex; flex-direction:row; align-items:center; justify-content:center;">
-          <canvas id="perfilCanvas" width="400" height="400" style="border:1px solid #888; background:#fff; margin:0 auto; display:block;"></canvas>
-          <div style="display:flex; flex-direction:column; align-items:center; margin-left:24px;">
-            <label for="alturaSlider" style="font-weight:bold; margin-bottom:8px;">Altura (mm)</label>
-            <input type="range" id="alturaSlider" min="100" max="350" value="150" step="5" orient="vertical" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; appearance: slider-vertical; width:40px; height:400px;">
-            <span id="alturaSlider_val">150</span>
+      <div class="col topview-col" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding: 0 15px; overflow:hidden;">
+        <div style="width:100%; box-sizing:border-box; background:#fff; padding:12px 0 12px 0;">
+          <h2 style="margin-top:0; margin-bottom:12px; text-align:center; width:100%;">Vista superior de las dos primeras capas</h2>
+          <canvas id="topViewCanvas" width="400" height="400" style="border:1px solid #888; border-radius:12px; background:#fff; display:block; max-width:320px; height:auto; max-height:400px; margin:0 auto; box-shadow:0 1px 6px rgba(0,0,0,0.07);"></canvas>
+        </div>
+      </div>
+      <div class="col canvas-col" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding: 0 15px; overflow:hidden;">
+        <div style="width:100%; box-sizing:border-box; margin-bottom:24px; background:#fff; padding:12px 0 12px 0;">
+          <h2 style="margin-top:0; margin-bottom:12px; text-align:center; width:100%;">Perfil de revolución ⌀</h2>
+          <div style="width:100%; display:flex; flex-direction:row; align-items:center; justify-content:center;">
+            <canvas id="perfilCanvas" width="400" height="400" style="border:1px solid #888; border-radius:12px; background:#fff; margin:0 auto; display:block; max-width:100%; height:auto; max-height:400px; box-shadow:0 1px 6px rgba(0,0,0,0.07);"></canvas>
+            <div style="display:flex; flex-direction:column; align-items:center; margin-left:24px; height:280px; justify-content:space-between; margin-top:60px; margin-bottom:60px;">
+              <label for="alturaSlider" style="font-weight:bold; margin-bottom:0; font-size:0.92em;">Altura (mm)</label>
+              <input type="range" id="alturaSlider" min="100" max="350" value="150" step="5" orient="vertical" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; appearance: slider-vertical; width:28px; height:160px; margin:0;">
+              <span id="alturaSlider_val" style="margin-top:0; font-size:0.92em;">150</span>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col perfil-col">
-        <label style="font-weight:bold; margin-bottom:12px;">Perfil de revolución (radio en mm para cada altura):</label>
+      <div class="col perfil-col" style="align-items: flex-start; padding: 18px 15px 18px 15px;">
+        <h2 style="margin-top:0; margin-bottom:12px; text-align:center; width:100%;">Parámetros de revolución ⌀</h2>
         <div id="slidersPerfil" style="display:flex; flex-direction:column; align-items:center; gap:32px; margin-top:0; width:100%;">
           <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+            <span style="font-weight:bold; margin-bottom:2px;">Top</span>
             <input type="range" min="50" max="300" value="75" id="perfil0" style="width:100%; max-width:320px;" step="5">
-            <span id="perfil0_val">75</span><br>Top
+            <span id="perfil0_val">75</span>
           </div>
           <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+            <span style="font-weight:bold; margin-bottom:2px;">3/4</span>
             <input type="range" min="50" max="300" value="50" id="perfil1" style="width:100%; max-width:320px;" step="5">
-            <span id="perfil1_val">50</span><br>3/4
+            <span id="perfil1_val">50</span>
           </div>
           <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+            <span style="font-weight:bold; margin-bottom:2px;">Mitad</span>
             <input type="range" min="50" max="300" value="100" id="perfil2" style="width:100%; max-width:320px;" step="5">
-            <span id="perfil2_val">100</span><br>Mitad
+            <span id="perfil2_val">100</span>
           </div>
           <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+            <span style="font-weight:bold; margin-bottom:2px;">1/4</span>
             <input type="range" min="50" max="300" value="120" id="perfil3" style="width:100%; max-width:320px;" step="5">
-            <span id="perfil3_val">120</span><br>1/4
+            <span id="perfil3_val">120</span>
           </div>
           <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+            <span style="font-weight:bold; margin-bottom:2px;">Base</span>
             <input type="range" min="50" max="300" value="75" id="perfil4" style="width:100%; max-width:320px;" step="5">
-            <span id="perfil4_val">75</span><br>Base
+            <span id="perfil4_val">75</span>
           </div>
         </div>
       </div>
