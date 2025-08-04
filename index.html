@@ -35,65 +35,60 @@
         <div class="col-inner">
           <h2>Generatriz</h2>
           <div class="canvas-row">
-            <div class="slider-col slider-col-left">
-              <label for="alturaSliderGen" class="slider-label slider-label-invisible">Altura (mm)</label>
-              <input type="range" class="dummy-slider-invisible" tabindex="-1">
-              <input type="range" class="dummy-slider-invisible" tabindex="-1">
-              <span id="alturaSliderGen_val" class="slider-value slider-value-invisible">150</span>
-            </div>
             <canvas id="topViewCanvas" width="400" height="400"></canvas>
-            <input type="range" class="dummy-slider-invisible" tabindex="-1">
-          </div>
-        </div>
-      </div>
-      <div class="col">
-        <div class="col-inner">
-          <h2>Directriz</h2>
-          <div class="canvas-row">
-            <input type="range" class="dummy-slider-invisible" tabindex="-1">
-            <canvas id="perfilCanvas" width="400" height="400"></canvas>
-            <div class="slider-col slider-col-right">
-              <label for="alturaSlider" class="slider-label">Altura (mm)</label>
-              <input type="range" id="alturaSlider" min="100" max="350" value="150" step="5" orient="vertical" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; appearance: slider-vertical; width:28px; height:160px; margin:0;">
-              <span id="alturaSlider_val" class="slider-value">150</span>
-            </div>
           </div>
         </div>
       </div>
 <div class="col">
-        <div class="col-inner">
-          <h2>Parámetros de revolución ⌀</h2>
-          <div id="slidersPerfil" class="sliders-perfil">
-            <div class="slider-perfil-row">
-              <span class="slider-perfil-label">Top</span>
-              <input type="range" min="50" max="300" value="75" id="perfil0" class="slider-perfil" step="5">
-              <span id="perfil0_val">75</span>
-            </div>
-            <div class="slider-perfil-row">
-              <span class="slider-perfil-label">3/4</span>
-              <input type="range" min="50" max="300" value="50" id="perfil1" class="slider-perfil" step="5">
-              <span id="perfil1_val">50</span>
-            </div>
-            <div class="slider-perfil-row">
-              <span class="slider-perfil-label">Mitad</span>
-              <input type="range" min="50" max="300" value="100" id="perfil2" class="slider-perfil" step="5">
-              <span id="perfil2_val">100</span>
-            </div>
-            <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
-              <span style="font-weight:bold; margin-bottom:2px;">1/4</span>
-              <input type="range" min="50" max="300" value="120" id="perfil3" style="width:100%; max-width:320px;" step="5">
-              <span id="perfil3_val">120</span>
-            </div>
-            <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
-              <span style="font-weight:bold; margin-bottom:2px;">Base</span>
-              <input type="range" min="50" max="300" value="75" id="perfil4" style="width:100%; max-width:320px;" step="5">
-              <span id="perfil4_val">75</span>
-            </div>
+       <div class="col-inner">
+         <h2>Directriz</h2>
+        <div class="canvas-row">
+          <canvas id="perfilCanvas" width="400" height="400"></canvas>
           </div>
+        </div>
+      </div>
+<div class="col">
+  <div class="col-inner">
+    <h2>Parámetros de revolución ⌀</h2>
+    <div class="revolucion-slider-grid">
+      <!-- Slider vertical -->
+      <div class="slider-col slider-col-right">
+        <label for="alturaSlider" class="slider-label">Altura (mm)</label>
+        <input type="range" id="alturaSlider" min="100" max="350" value="150" step="5" orient="vertical">
+        <input type="number" id="alturaSlider_val" class="slider-value" min="100" max="350" value="150" step="5" style="width: 60px; margin-top: 8px; text-align: center;">
+      </div>
+      <!-- Sliders horizontales -->
+      <div id="slidersPerfil" class="sliders-perfil">
+        <div class="slider-perfil-row slider-perfil-horizontal">
+          <span class="slider-perfil-label">Top</span>
+          <input type="range" min="50" max="300" value="75" id="perfil0" class="slider-perfil" step="5">
+          <input type="number" id="perfil0_val" class="slider-value slider-value-horizontal" min="50" max="300" value="75" step="5">
+        </div>
+        <div class="slider-perfil-row slider-perfil-horizontal">
+          <span class="slider-perfil-label">3/4</span>
+          <input type="range" min="50" max="300" value="50" id="perfil1" class="slider-perfil" step="5">
+          <input type="number" id="perfil1_val" class="slider-value slider-value-horizontal" min="50" max="300" value="50" step="5">
+        </div>
+        <div class="slider-perfil-row slider-perfil-horizontal">
+          <span class="slider-perfil-label">Mitad</span>
+          <input type="range" min="50" max="300" value="100" id="perfil2" class="slider-perfil" step="5">
+          <input type="number" id="perfil2_val" class="slider-value slider-value-horizontal" min="50" max="300" value="100" step="5">
+        </div>
+        <div class="slider-perfil-row slider-perfil-horizontal">
+          <span class="slider-perfil-label">1/4</span>
+          <input type="range" min="50" max="300" value="120" id="perfil3" class="slider-perfil" step="5">
+          <input type="number" id="perfil3_val" class="slider-value slider-value-horizontal" min="50" max="300" value="120" step="5">
+        </div>
+        <div class="slider-perfil-row slider-perfil-horizontal">
+          <span class="slider-perfil-label">Base</span>
+          <input type="range" min="50" max="300" value="75" id="perfil4" class="slider-perfil" step="5">
+          <input type="number" id="perfil4_val" class="slider-value slider-value-horizontal" min="50" max="300" value="75" step="5">
         </div>
       </div>
     </div>
   </div>
+</div>
+ </div>
 
   <!-- Previsualizador eliminado -->
 

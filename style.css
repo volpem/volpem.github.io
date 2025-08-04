@@ -1,3 +1,42 @@
+/* Sliders perfil horizontal: fila con label, slider, input */
+.slider-perfil-horizontal {
+  display: grid;
+  grid-template-columns: min-content 1fr min-content;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.slider-value-horizontal {
+  width: 60px;
+  min-width: 40px;
+  text-align: center;
+}
+/* Grid para sliders de revolución: 1/5 altura, 4/5 sliders */
+/* Grid para sliders de revolución: 1/5 altura, 4/5 sliders, altura 100% */
+.revolucion-slider-grid {
+  display: grid;
+  grid-template-columns: 1fr 4fr;
+  gap: 20px;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+@media (max-width: 900px) {
+  .revolucion-slider-grid {
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+    min-height: 220px;
+  }
+}
+@media (max-width: 600px) {
+  .revolucion-slider-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    min-height: 120px;
+  }
+}
 /* Estilos comunes para los divs internos de columnas */
 .col-inner {
   width: 100%;
@@ -5,6 +44,31 @@
   padding: 12px 0 12px 0;
   box-sizing: border-box;
   margin-bottom: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+/* Distribuir controles equidistantes en columnas de parámetros */
+.col-inner > label,
+.col-inner > button,
+.sliders-perfil {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.col-inner > h2 {
+  flex: 0 0 auto;
+}
+/* Evitar que las columnas de parámetros sean más altas que las de directriz/generatriz */
+.responsive-grid {
+  align-items: stretch;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 /* h2 de columnas: centrado y ancho completo */
@@ -30,26 +94,34 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  height: 280px;
   justify-content: space-between;
-  margin-top: 60px;
-  margin-bottom: 60px;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  width: 100%;
+  margin: 0;
 }
-.slider-col-left { margin-left: 24px; }
-.slider-col-right { margin-left: 24px; }
+.slider-col-left { margin-left: 0; }
+.slider-col-right { margin-left: 0; }
 
+/* Label de slider vertical */
 /* Label de slider vertical */
 .slider-label {
   font-weight: bold;
   margin-bottom: 0;
   font-size: 0.92em;
+  width: 100%;
+  text-align: center;
 }
 .slider-label-invisible { opacity: 0; }
 
 /* Valor de slider vertical */
+/* Valor de slider vertical */
 .slider-value {
   margin-top: 0;
   font-size: 0.92em;
+  width: 100%;
+  text-align: center;
 }
 .slider-value-invisible { opacity: 0; }
 
@@ -57,24 +129,25 @@
 .sliders-perfil {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 32px;
+  align-items: stretch;
+  gap: 12px;
   margin-top: 0;
   width: 100%;
 }
 .slider-perfil-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   width: 100%;
 }
 .slider-perfil-label {
   font-weight: bold;
   margin-bottom: 2px;
 }
+/* Sliders horizontales de perfil: adaptativos */
 .slider-perfil {
   width: 100%;
-  max-width: 320px;
+  min-width: 60px;
+  max-width: 100%;
+  height: 2.2em;
+  box-sizing: border-box;
 }
 /* Unificación visual de los bloques de gráficos */
 .canvas-block, .topview-block {
@@ -151,18 +224,32 @@ body {
 /* Grid horizontal de 3 columnas grandes, usando todo el ancho de pantalla */
 /* Grid horizontal de 3 columnas grandes, usando 80vw del ancho de pantalla */
 /* Grid horizontal de 3 columnas grandes, usando 80vw y centrada */
+/* Responsive grid: 4 cols HD, 2 cols mediano, 1 col móvil */
 .responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   width: 100vw;
   max-width: 100vw;
   min-width: 100vw;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-  padding-left: 10px;
-  padding-right: 10px;
+  padding: 0 10px;
   align-items: stretch;
-  justify-content: stretch;
+  justify-items: stretch;
+}
+
+@media (max-width: 1200px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (max-width: 700px) {
+  .responsive-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 }
 /* Unificación de columnas */
 .col {
@@ -193,13 +280,17 @@ body {
 }
 
 /* Slider invisible para centrar canvas en columnas con slider solo de un lado */
+/* Dummy slider invisible: responsivo */
 .dummy-slider-invisible {
-  width: 28px;
-  height: 160px;
+  width: 6vw;
+  min-width: 24px;
+  max-width: 40px;
+  height: 18vh;
+  min-height: 80px;
+  max-height: 220px;
   writing-mode: bt-lr;
   -webkit-appearance: slider-vertical;
   appearance: slider-vertical;
-  margin: 0;
   padding: 0;
   border-radius: 6px;
   border: 1px solid #ccc;
@@ -211,16 +302,58 @@ body {
 
 /* Canvas: evitar desbordes y escalado horizontal, unificado */
 canvas#perfilCanvas, canvas#topViewCanvas {
-  width: 400px !important;
-  height: 400px !important;
-  max-width: 100vw;
-  max-height: 400px;
-  margin: 0 auto;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+  box-sizing: border-box;
   display: block;
   background: transparent !important;
   border: 1px solid #bbb;
   border-radius: 12px;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 60vw;
+}
+/* Slider vertical de altura: responsivo */
+#alturaSlider {
+  width: 7vw;
+  min-width: 24px;
+  max-width: 40px;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  margin: 0 auto;
   box-sizing: border-box;
+}
+@media (max-width: 900px) {
+  .slider-col {
+    height: 22vh;
+    min-height: 80px;
+    max-height: 180px;
+  }
+  #alturaSlider, .dummy-slider-invisible {
+    height: 16vh;
+    min-height: 60px;
+    max-height: 140px;
+  }
+}
+@media (max-width: 600px) {
+  .slider-col {
+    height: 16vh;
+    min-height: 60px;
+    max-height: 100px;
+  }
+  #alturaSlider, .dummy-slider-invisible {
+    height: 10vh;
+    min-height: 40px;
+    max-height: 80px;
+  }
+  .slider-perfil {
+    height: 1.6em;
+  }
 }
 
 html, body {
@@ -240,35 +373,9 @@ button#downloadBtn {
 button#downloadBtn:hover {
   background: #1565c0;
 }
-@media (max-width: 1200px) {
-  .responsive-grid {
-    flex-direction: row;
-    flex-wrap: wrap;
-    max-width: 100vw;
-    min-width: 100vw;
-    gap: 10px;
-  }
-}
-@media (max-width: 900px) {
-  .responsive-grid {
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    max-width: 100vw;
-    min-width: 100vw;
-  }
-  .col {
-    width: 100% !important;
-    min-width: 0;
-    max-width: 100vw;
-  }
-}
 @media (max-width: 600px) {
   .main-center {
     padding: 0 4px;
-  }
-  .responsive-grid {
-    gap: 12px;
   }
   .col {
     padding: 12px 4px;

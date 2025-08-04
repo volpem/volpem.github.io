@@ -1,3 +1,78 @@
+// Sincronizar sliders y cajas de texto en columna de parámetros
+document.addEventListener('DOMContentLoaded', function() {
+  const paramSliders = [
+    {slider: 'pared_slider', input: 'pared'},
+    {slider: 'alturaCapa_slider', input: 'alturaCapa'},
+    {slider: 'camaX_slider', input: 'camaX'},
+    {slider: 'camaY_slider', input: 'camaY'},
+    {slider: 'tempExtrusor_slider', input: 'tempExtrusor'},
+    {slider: 'tempCama_slider', input: 'tempCama'},
+    {slider: 'flujo_slider', input: 'flujo'},
+    {slider: 'flujoMax_slider', input: 'flujoMax'},
+    {slider: 'fanCapa_slider', input: 'fanCapa'},
+    {slider: 'vueltasTranslacion_slider', input: 'vueltasTranslacion'},
+    {slider: 'moduloDesfase_slider', input: 'moduloDesfase'},
+    {slider: 'diametroGiro_slider', input: 'diametroGiro'}
+  ];
+  paramSliders.forEach(({slider, input}) => {
+    const s = document.getElementById(slider);
+    const i = document.getElementById(input);
+    if (s && i) {
+      s.addEventListener('input', function() {
+        i.value = s.value;
+      });
+      i.addEventListener('input', function() {
+        let v = parseFloat(i.value);
+        if (!isNaN(v)) {
+          if (v < parseFloat(s.min)) v = parseFloat(s.min);
+          if (v > parseFloat(s.max)) v = parseFloat(s.max);
+          s.value = v;
+          i.value = v;
+        }
+      });
+    }
+  });
+});
+// Sincronizar sliders horizontales y valores editables
+document.addEventListener('DOMContentLoaded', function() {
+  for (let i = 0; i <= 4; i++) {
+    const slider = document.getElementById('perfil' + i);
+    const input = document.getElementById('perfil' + i + '_val');
+    if (slider && input) {
+      slider.addEventListener('input', function() {
+        input.value = slider.value;
+      });
+      input.addEventListener('input', function() {
+        let v = parseInt(input.value, 10);
+        if (!isNaN(v)) {
+          if (v < parseInt(slider.min, 10)) v = parseInt(slider.min, 10);
+          if (v > parseInt(slider.max, 10)) v = parseInt(slider.max, 10);
+          slider.value = v;
+          input.value = v;
+        }
+      });
+    }
+  }
+});
+// Sincronizar slider vertical y valor editable
+document.addEventListener('DOMContentLoaded', function() {
+  var slider = document.getElementById('alturaSlider');
+  var input = document.getElementById('alturaSlider_val');
+  if (slider && input) {
+    slider.addEventListener('input', function() {
+      input.value = slider.value;
+    });
+    input.addEventListener('input', function() {
+      let v = parseInt(input.value, 10);
+      if (!isNaN(v)) {
+        if (v < parseInt(slider.min, 10)) v = parseInt(slider.min, 10);
+        if (v > parseInt(slider.max, 10)) v = parseInt(slider.max, 10);
+        slider.value = v;
+        input.value = v;
+      }
+    });
+  }
+});
 
 // --- Sliders para perfil de revolución ---
 // Slider vertical de altura
