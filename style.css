@@ -1,26 +1,150 @@
+/* Estilos comunes para los divs internos de columnas */
+.col-inner {
+  width: 100%;
+  background: transparent;
+  padding: 12px 0 12px 0;
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+/* h2 de columnas: centrado y ancho completo */
+.col-inner h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  text-align: center;
+  width: 100%;
+}
+
+/* Fila de canvas y sliders */
+.canvas-row {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+/* Columnas de sliders verticales */
+.slider-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 280px;
+  justify-content: space-between;
+  margin-top: 60px;
+  margin-bottom: 60px;
+}
+.slider-col-left { margin-left: 24px; }
+.slider-col-right { margin-left: 24px; }
+
+/* Label de slider vertical */
+.slider-label {
+  font-weight: bold;
+  margin-bottom: 0;
+  font-size: 0.92em;
+}
+.slider-label-invisible { opacity: 0; }
+
+/* Valor de slider vertical */
+.slider-value {
+  margin-top: 0;
+  font-size: 0.92em;
+}
+.slider-value-invisible { opacity: 0; }
+
+/* Sliders de perfil horizontal */
+.sliders-perfil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  margin-top: 0;
+  width: 100%;
+}
+.slider-perfil-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.slider-perfil-label {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+.slider-perfil {
+  width: 100%;
+  max-width: 320px;
+}
+/* Unificación visual de los bloques de gráficos */
+.canvas-block, .topview-block {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  background: transparent !important;
+  padding: 12px 0 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.canvas-block .canvas-row, .topview-block .canvas-row {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+.canvas-block canvas, .topview-block canvas {
+  border: 1px solid #bbb;
+  border-radius: 12px;
+  background: transparent !important;
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-width: 400px;
+  max-height: 400px;
+  margin: 0 auto;
+}
 /* Centrar el título principal */
 h1 {
   text-align: center;
   width: 80%;
   margin-top: 32px;
   margin-bottom: 24px;
+  color: #fff;
+  font-size: 3.2em;
+  font-weight: bold;
 }
 /* Centrado y responsivo para la web del generador de G-code */
 body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  min-width: 100vw;
   box-sizing: border-box;
-  background: #f7f7f7;
+  background: #145a32 !important;
   font-family: 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow-x: auto;
 }
 .main-center {
+  width: 100vw;
+  max-width: 100vw;
+  min-height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  width: 100vw;
+  justify-content: flex-start;
+  padding-top: 32px;
+  padding-bottom: 16px;
 }
 /* Grid horizontal de 3 columnas grandes */
 /* Grid horizontal de 3 columnas grandes, con ancho máximo limitado */
@@ -28,65 +152,81 @@ body {
 /* Grid horizontal de 3 columnas grandes, usando 80vw del ancho de pantalla */
 /* Grid horizontal de 3 columnas grandes, usando 80vw y centrada */
 .responsive-grid {
+  width: 100vw;
+  max-width: 100vw;
+  min-width: 100vw;
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
-  gap: 32px;
-  width: 80vw;
-  max-width: 80vw;
-  margin-left: auto;
-  margin-right: auto;
-  justify-content: center;
+  gap: 10px;
+  padding-left: 10px;
+  padding-right: 10px;
   align-items: stretch;
-  min-height: 80vh;
-  box-sizing: border-box;
+  justify-content: stretch;
 }
+/* Unificación de columnas */
 .col {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
-  padding: 32px 18px;
-  flex: 1 1 0;
-  min-width: 220px;
-  max-width: none;
-  margin: 0 8px;
+  background: #FAFAFA !important;
+  min-width: 0;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 18px 15px;
+  margin: 10px;
+  border-radius: 20px;
+}
+}
+
+/* Asegura que el h2 esté siempre arriba en el contenido interno de cada columna */
+/* Asegura que el h2 esté siempre arriba en el contenido interno de cada columna */
+/* Mantener alineación de subtítulos en columnas */
+.col > div {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.col h2 {
+  align-self: flex-start;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+/* Slider invisible para centrar canvas en columnas con slider solo de un lado */
+.dummy-slider-invisible {
+  width: 28px;
+  height: 160px;
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  margin: 0;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  opacity: 0;
+  pointer-events: none;
   box-sizing: border-box;
 }
-.canvas-col {
-  min-width: 220px;
-  max-width: none;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  min-height: 80vh;
-  display: flex;
-  flex-direction: column;
 }
-canvas#perfilCanvas {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 350px;
-  max-height: 350px;
+/* Canvas y columna canvas: evitar desbordes y escalado horizontal */
+canvas#perfilCanvas, canvas#topViewCanvas {
+  width: 400px !important;
+  height: 400px !important;
+  max-width: 100vw;
+  max-height: 400px;
   margin: 0 auto;
   display: block;
-  background: #fff;
+  background: transparent !important;
+  border: 1px solid #bbb;
   border-radius: 12px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
 }
-canvas#perfilCanvas {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 350px;
-  max-height: 350px;
-  margin: 0 auto;
-  display: block;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
-}
+canvas#perfilCanvas,
+canvas#topViewCanvas,
 canvas#perfilCanvas {
   width: 100% !important;
   height: 100% !important;
@@ -94,15 +234,9 @@ canvas#perfilCanvas {
   max-height: 400px;
   margin: 0 auto;
   display: block;
-  background: #fff;
+  background: transparent !important;
   border-radius: 12px;
   box-shadow: 0 1px 6px rgba(0,0,0,0.07);
-}
-.config-col label,
-.perfil-col label {
-  width: 100%;
-  margin-bottom: 12px;
-  font-size: 1rem;
 }
 button#downloadBtn {
   margin-top: 16px;
@@ -118,26 +252,27 @@ button#downloadBtn {
 button#downloadBtn:hover {
   background: #1565c0;
 }
+@media (max-width: 1200px) {
+  .responsive-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-width: 100vw;
+    min-width: 100vw;
+    gap: 10px;
+  }
+}
 @media (max-width: 900px) {
   .responsive-grid {
     flex-direction: column;
     align-items: center;
-    gap: 24px;
-    min-height: unset;
-    max-width: 98vw;
+    gap: 10px;
+    max-width: 100vw;
+    min-width: 100vw;
   }
   .col {
-    max-width: 98vw;
-    min-width: 220px;
-    padding: 18px 4px;
-  }
-  .canvas-col {
-    min-width: 220px;
-    max-width: 98vw;
-  }
-  canvas#perfilCanvas {
-    max-width: 98vw;
-    max-height: 320px;
+    width: 100% !important;
+    min-width: 0;
+    max-width: 100vw;
   }
 }
 @media (max-width: 600px) {
@@ -151,11 +286,7 @@ button#downloadBtn:hover {
     padding: 12px 4px;
   }
 }
-body {
-  font-family: sans-serif;
-  padding: 2em;
-  background: #f5f5f5;
-}
+
 
 form {
   display: flex;
