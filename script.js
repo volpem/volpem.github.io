@@ -149,56 +149,87 @@ function drawPerfil() {
   perfilCtx.setLineDash([]); // líneas sólidas
   const gridStep = 10;
   const labelStep = 50;
-  const gridYCount = Math.floor((canvasH - 2 * margen) / (gridStep * escala));
+  // Asegurar que se cubra toda la altura, sumando 1 para incluir la última línea
+  const gridYCount = Math.ceil((canvasH - 2 * margen) / (gridStep * escala)) + 1;
   // Líneas horizontales (altura)
   for (let i = 0; i <= gridYCount; i++) {
     const mm = i * gridStep;
     const y = canvasH - margen - mm * escala;
-    perfilCtx.beginPath();
-    perfilCtx.moveTo(margen, y);
-    perfilCtx.lineTo(canvasW - margen, y);
-    if (mm % labelStep === 0) {
-      perfilCtx.strokeStyle = '#aaa';
-      perfilCtx.lineWidth = 1.2;
-    } else {
-      perfilCtx.strokeStyle = '#ccc';
-      perfilCtx.lineWidth = 0.5;
+    // Solo dibujar si la línea está dentro del área visible del canvas
+    if (y >= margen - 1 && y <= canvasH - margen + 1) {
+      perfilCtx.beginPath();
+      perfilCtx.moveTo(margen, y);
+      perfilCtx.lineTo(canvasW - margen, y);
+      if (mm % labelStep === 0) {
+        perfilCtx.strokeStyle = '#aaa';
+        perfilCtx.lineWidth = 1.2;
+      } else {
+        perfilCtx.strokeStyle = '#ccc';
+        perfilCtx.lineWidth = 0.5;
+      }
+      perfilCtx.stroke();
     }
-    perfilCtx.stroke();
+    // Etiquetas: siempre dibujar la de 0mm en el borde inferior aunque la línea esté fuera
     if (mm % labelStep === 0) {
       perfilCtx.font = '12px Arial';
       perfilCtx.fillStyle = '#888';
-      perfilCtx.fillText(`${mm}mm`, 2, y - 2);
+      const label = `${mm}mm`;
+      const labelHeight = 12; // Aproximado para Arial 12px
+      let labelY = y - 4; // 4px por encima de la línea
+      if (labelY - labelHeight < 0) {
+        labelY = y + labelHeight + 2;
+      }
+      // Si es la etiqueta de 0mm, SIEMPRE dibujarla en el borde inferior
+      if (mm === 0) {
+        labelY = canvasH - margen - 4;
+      }
+      if (labelY < canvasH - margen + labelHeight && labelY > 0) {
+        perfilCtx.fillText(label, 2, labelY);
+      }
     }
   }
   // Líneas verticales (diámetro)
-  const gridXCount = Math.floor((canvasW - 2 * margen) / (gridStep * escala));
-  for (let i = -gridXCount/2; i <= gridXCount/2; i++) {
-    const mm = i * gridStep;
+  // Calcular el rango de mm para cubrir todo el canvas, asegurando que el 0 siempre esté incluido
+  const mmMin = Math.ceil(-(cx - margen) / escala / gridStep) * gridStep;
+  const mmMax = Math.floor((canvasW - margen - cx) / escala / gridStep) * gridStep;
+  for (let mm = mmMin; mm <= mmMax; mm += gridStep) {
     const x = cx + mm * escala;
-    perfilCtx.beginPath();
-    perfilCtx.moveTo(x, margen);
-    perfilCtx.lineTo(x, canvasH - margen);
-    if (mm % labelStep === 0 && mm !== 0) {
-      perfilCtx.strokeStyle = '#aaa';
-      perfilCtx.lineWidth = 1.2;
-    } else {
-      perfilCtx.strokeStyle = '#ccc';
-      perfilCtx.lineWidth = 0.5;
-    }
-    perfilCtx.stroke();
-    // Etiquetas eje horizontal
-    if (mm % labelStep === 0 && mm !== 0) {
-      perfilCtx.font = '12px Arial';
-      perfilCtx.fillStyle = '#888';
-      // Mostrar siempre el símbolo de diámetro y el valor real
-      let label = `⌀${Math.abs(mm*2)}mm`;
-      let labelWidth = perfilCtx.measureText(label).width;
-      // Limitar la posición para que no se salga del canvas
-      let labelX = x - labelWidth/2;
-      labelX = Math.max(labelX, margen + 2); // margen izquierdo
-      labelX = Math.min(labelX, canvasW - margen - labelWidth - 2); // margen derecho
-      perfilCtx.fillText(label, labelX, canvasH - 4);
+    // Solo dibujar si la línea está dentro del área visible del canvas
+    if (x >= margen - 1 && x <= canvasW - margen + 1) {
+      perfilCtx.beginPath();
+      perfilCtx.moveTo(x, margen);
+      perfilCtx.lineTo(x, canvasH - margen);
+      if (mm % labelStep === 0) {
+        perfilCtx.strokeStyle = '#aaa';
+        perfilCtx.lineWidth = 1.2;
+      } else {
+        perfilCtx.strokeStyle = '#ccc';
+        perfilCtx.lineWidth = 0.5;
+      }
+      perfilCtx.stroke();
+      // Etiquetas eje horizontal (radios)
+      if (mm % labelStep === 0) {
+        perfilCtx.font = '12px Arial';
+        perfilCtx.fillStyle = '#888';
+        let label;
+        let labelWidth;
+        let labelX;
+        if (mm === 0) {
+          label = '0';
+          labelWidth = perfilCtx.measureText(label).width;
+          labelX = cx - labelWidth/2;
+        } else {
+          label = `⌀${Math.abs(mm*2)}mm`;
+          labelWidth = perfilCtx.measureText(label).width;
+          labelX = x - labelWidth/2;
+        }
+        // Si es la etiqueta de 0, SIEMPRE dibujarla en el centro
+        if (mm === 0) {
+          perfilCtx.fillText(label, labelX, canvasH - 4);
+        } else if (labelX + labelWidth > margen && labelX < canvasW - margen) {
+          perfilCtx.fillText(label, labelX, canvasH - 4);
+        }
+      }
     }
   }
   perfilCtx.restore();
@@ -621,9 +652,11 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     const layer = Math.floor(z / params.alturaCapa);
     let phase = vueltaActual * 2 * Math.PI;
     if (moduloDesfase !== 0) {
+      // Fórmula: (moduloDesfase) × (2π / vueltasTranslacion) / 10
+      const delta = moduloDesfase * 2 * Math.PI/ vueltasPorCapa / 10;
       // Interpolación suave del desfase entre capas
-      const desfasePrev = (moduloDesfase / vueltasPorCapa) * 2 * Math.PI * (layer - 1);
-      const desfaseCurr = (moduloDesfase / vueltasPorCapa) * 2 * Math.PI * layer;
+      const desfasePrev = delta * (layer - 1);
+      const desfaseCurr = delta * layer;
       const desfaseInterp = desfasePrev + (desfaseCurr - desfasePrev) * zRel;
       phase += desfaseInterp;
     }
@@ -648,8 +681,8 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     const eStep = volumen / areaFilamento;
     eTotal += eStep;
 
-    // Comentario de capa para PrusaSlicer
-    if (layer !== lastLayer) {
+    // Solo agregar layer change si no es la última iteración (sin trayectorias)
+    if (layer !== lastLayer && i < pasos) {
       gcode.push(`;LAYER_CHANGE`);
       gcode.push(`;LAYER:${layer}`);
       lastLayer = layer;
