@@ -373,6 +373,7 @@ function drawTopView() {
   const maxR = 0.8 * Math.min(canvasW, canvasH) - margen;
   const escala = maxR / radioMaxReal;
   // Centro del círculo en la esquina inferior izquierda del cuadrante visible
+  // Para girar 90° horario, el centro sigue igual pero se rota cada punto
   const cx = margen;
   const cy = canvasH - margen;
   // Dibujar cuadrícula y escala (círculo completo, SIEMPRE, aunque no haya dibujo)
@@ -457,24 +458,35 @@ function drawTopView() {
       const diametroActual = catmullRom(p0, p1, p2, p3, t);
       const radio = diametroActual / 2;
       const radioGiro = diametroGiro / 2;
-      // Centro helicoidal
-      const cxH = offsetX + Math.cos(angulo) * radio * escala;
-      const cyH = offsetY + Math.sin(angulo) * radio * escala;
+      // Centro helicoidal (antes de rotar)
+      let cxH = offsetX + Math.cos(angulo) * radio * escala;
+      let cyH = offsetY + Math.sin(angulo) * radio * escala;
+      // Rotar 90° horario respecto al centro
+      const dxH = cxH - cx;
+      const dyH = cyH - cy;
+      // x' = y, y' = -x
+      cxH = cx + dyH;
+      cyH = cy - dxH;
       // Progreso dentro de la capa (0 a 1)
       const zRel = (z % alturaCapa) / alturaCapa;
       // Número de vuelta actual en la capa (sentido invertido)
-      const vueltaActual = -vueltasTranslacion * zRel;
-      // Ángulo base de la vuelta actual + desfase interpolado entre capas
+        const vueltaActual = vueltasTranslacion * zRel;
+      // Ángulo base de la vuelta actual + desfase acumulado por capa
       let phase = vueltaActual * 2 * Math.PI;
       if (moduloDesfase !== 0) {
-        const desfasePrev = (moduloDesfase / vueltasTranslacion) * 2 * Math.PI * (l - 1);
-        const desfaseCurr = (moduloDesfase / vueltasTranslacion) * 2 * Math.PI * l;
-        const desfaseInterp = desfasePrev + (desfaseCurr - desfasePrev) * zRel;
-        phase += desfaseInterp;
+        // moduloDesfase ahora es porcentaje (-50 a +50)
+        const delta = -moduloDesfase * (2 * Math.PI) / 100;
+        const desfase = delta * l;
+        phase += desfase;
       }
-      // Posición final: círculo alrededor del centro helicoidal
-      const x = cxH + Math.cos(phase) * radioGiro * escala;
-      const y = cyH + Math.sin(phase) * radioGiro * escala;
+      // Posición final: círculo alrededor del centro helicoidal (antes de rotar)
+      let x0 = cxH + Math.cos(phase) * radioGiro * escala;
+      let y0 = cyH + Math.sin(phase) * radioGiro * escala;
+      // Rotar 90° horario respecto al centro
+      const dx0 = x0 - cx;
+      const dy0 = y0 - cy;
+      const x = cx + dy0;
+      const y = cy - dx0;
       if (first) { topViewCtx.moveTo(x, y); first = false; }
       else topViewCtx.lineTo(x, y);
     }
@@ -647,18 +659,15 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     // Progreso dentro de la capa (0 a 1)
     const zRel = (z % params.alturaCapa) / params.alturaCapa;
     // Número de vuelta actual en la capa (sentido invertido)
-    const vueltaActual = -vueltasPorCapa * zRel;
+    const vueltaActual = vueltasPorCapa * zRel;
     // Ángulo base de la vuelta actual + desfase interpolado entre capas
     const layer = Math.floor(z / params.alturaCapa);
     let phase = vueltaActual * 2 * Math.PI;
     if (moduloDesfase !== 0) {
-      // Fórmula: (moduloDesfase) × (2π / vueltasTranslacion) / 10
-      const delta = moduloDesfase * 2 * Math.PI/ vueltasPorCapa / 10;
-      // Interpolación suave del desfase entre capas
-      const desfasePrev = delta * (layer - 1);
-      const desfaseCurr = delta * layer;
-      const desfaseInterp = desfasePrev + (desfaseCurr - desfasePrev) * zRel;
-      phase += desfaseInterp;
+      // moduloDesfase ahora es porcentaje (-50 a +50)
+      const delta = -moduloDesfase * (2 * Math.PI) / 100;
+      const desfase = delta * layer;
+      phase += desfase;
     }
     // Posición final: círculo perfecto alrededor del centro helicoidal
     const x = cx + radioGiro * Math.cos(phase);
