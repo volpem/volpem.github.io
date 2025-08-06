@@ -1,4 +1,3 @@
-
 /* Fila de sliders de perfil horizontal: label, slider, input */
 .slider-perfil-horizontal {
   display: grid;
@@ -334,7 +333,6 @@ canvas#perfilCanvas, canvas#topViewCanvas {
   -webkit-appearance: slider-vertical;
   appearance: slider-vertical;
   margin: 0 auto;
-  box-sizing: border-box;
 }
 /* Media queries para responsividad */
 @media (max-width: 900px) {
@@ -415,4 +413,60 @@ label {
 /* Input de formulario */
 input {
   width: 80px;
+}
+
+/* Estilos para el popup de previsualización */
+#previewModal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(20,20,20,0.85);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  flex-direction: row;
+}
+#previewModal.active {
+  display: flex;
+}
+#previewModal .preview-modal-content {
+  position: relative;
+  background: #fafafa;
+  border-radius: 20px;
+  box-shadow: 0 4px 32px #0008;
+  padding: 32px 24px;
+  max-width: 480px;
+  width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#previewModal .canvas-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#previewModal canvas {
+  display: block;
+  margin: auto;
+  background: transparent;
+  border-radius: 12px;
+  border: 1px solid #bbb;
+  max-width: 400px;
+  max-height: 400px;
+}
+#closePreviewModal {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 2em;
+  color: #1976d2;
+  cursor: pointer;
 }

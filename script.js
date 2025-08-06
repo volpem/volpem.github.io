@@ -729,3 +729,197 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     alert("Error al generar el archivo: " + err.message);
   }
 });
+
+// --- Previsualización 3D con trayectoria real del G-code ---
+function getGcodeTrajectoryReal(params) {
+  // Cálculos base
+  const altura = params.altura;
+  const perfil = params.perfil;
+  const offsetX = params.camaX / 2;
+  const offsetY = params.camaY / 2;
+  const alturaCapa = params.alturaCapa;
+  const diametroGiro = params.diametroGiro;
+  const vueltasTranslacion = params.vueltasTranslacion;
+  const moduloDesfase = params.moduloDesfase;
+  const pasoAngulo = 0.01;
+  const subidaPorPaso = alturaCapa * pasoAngulo / (2 * Math.PI);
+  const pasos = Math.ceil(altura / subidaPorPaso);
+  const points = [];
+
+  // Interpolación de diámetro usando Catmull-Rom spline
+  function interpDiametroSpline(z) {
+    const hReal = altura;
+    const fracciones = [0, 0.25, 0.5, 0.75, 1];
+    const puntos = fracciones.map((f, i) => ({ z: f * hReal, d: perfil[i] }));
+    let i = 0;
+    while (i < puntos.length - 1 && z > puntos[i+1].z) i++;
+    const p0 = puntos[Math.max(i-1, 0)];
+    const p1 = puntos[i];
+    const p2 = puntos[Math.min(i+1, puntos.length-1)];
+    const p3 = puntos[Math.min(i+2, puntos.length-1)];
+    const t = (z - p1.z) / (p2.z - p1.z);
+    function catmullRom(p0, p1, p2, p3, t) {
+      return 0.5 * ((2 * p1.d) +
+        (-p0.d + p2.d) * t +
+        (2*p0.d - 5*p1.d + 4*p2.d - p3.d) * t * t +
+        (-p0.d + 3*p1.d - 3*p2.d + p3.d) * t * t * t);
+    }
+    return catmullRom(p0, p1, p2, p3, t);
+  }
+
+  let angulo = 0;
+  for (let i = 0; i <= pasos; i++) {
+    angulo += pasoAngulo;
+    const z = i * subidaPorPaso;
+    const diametroActual = interpDiametroSpline(z);
+    const radio = diametroActual / 2;
+    // Centro helicoidal
+    const cx = offsetX + radio * Math.cos(angulo);
+    const cy = offsetY + radio * Math.sin(angulo);
+    // Ángulo de giro: vueltasTranslacion vueltas por capa (sentido invertido)
+    const vueltasPorCapa = vueltasTranslacion;
+    // Progreso dentro de la capa (0 a 1)
+    const zRel = (z % alturaCapa) / alturaCapa;
+    // Número de vuelta actual en la capa (sentido invertido)
+    const vueltaActual = vueltasPorCapa * zRel;
+    // Ángulo base de la vuelta actual + desfase interpolado entre capas
+    const layer = Math.floor(z / alturaCapa);
+    let phase = vueltaActual * 2 * Math.PI;
+    if (moduloDesfase !== 0) {
+      // moduloDesfase ahora es porcentaje (-50 a +50)
+      const delta = -moduloDesfase * (2 * Math.PI) / 100;
+      const desfase = delta * layer;
+      phase += desfase;
+    }
+    // Posición final: círculo perfecto alrededor del centro helicoidal
+    const x = cx + (diametroGiro / 2) * Math.cos(phase);
+    const y = cy + (diametroGiro / 2) * Math.sin(phase);
+    points.push({x, y, z});
+  }
+  return points;
+}
+
+function drawPreview3D() {
+  const canvas = document.getElementById('preview3dCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+
+  // Parámetros
+  const params = getParams();
+  const grosorPared = params.pared || 0.4;
+  const camaX = Number(params.camaX || 300);
+  const camaY = Number(params.camaY || 300);
+  const altura = Number(document.getElementById('alturaSlider')?.value || 150);
+  const points = getGcodeTrajectoryReal(params);
+
+  // Depuración: mostrar puntos en consola
+  console.log('drawPreview3D points:', points && points.length, points && points.slice(0,5));
+
+  if (!points || points.length < 2) {
+    ctx.save();
+    ctx.fillStyle = '#c00';
+    ctx.font = '18px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sin datos para mostrar', canvas.width/2, canvas.height/2);
+    ctx.restore();
+    return;
+  }
+
+  // Centro geométrico
+  const centerX = camaX / 2;
+  const centerY = camaY / 2;
+  const centerZ = altura / 2;
+
+  // Rango real de puntos
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  points.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  });
+
+  // Proyección isométrica para todos los puntos, centrando el centro geométrico
+  let projMinX = Infinity, projMaxX = -Infinity, projMinY = Infinity, projMaxY = -Infinity;
+  function isoRaw(x, y, z) {
+    // Ángulo XY reducido a 20° y proyección a 10°
+    const xyAngle = 20 * Math.PI / 180;
+    const projAngle = 10 * Math.PI / 180;
+    const rotX = (x - centerX) * Math.cos(xyAngle) - (y - centerY) * Math.sin(xyAngle);
+    const rotY = (x - centerX) * Math.sin(xyAngle) + (y - centerY) * Math.cos(xyAngle);
+    return {
+      x: (rotX - rotY) * Math.cos(projAngle),
+      y: (rotX + rotY) * Math.sin(projAngle) - (z - centerZ) * 1.2
+    };
+  }
+  points.forEach(p => {
+    const pr = isoRaw(p.x, p.y, p.z);
+    if (pr.x < projMinX) projMinX = pr.x;
+    if (pr.x > projMaxX) projMaxX = pr.x;
+    if (pr.y < projMinY) projMinY = pr.y;
+    if (pr.y > projMaxY) projMaxY = pr.y;
+  });
+  const projWidth = projMaxX - projMinX;
+  const projHeight = projMaxY - projMinY;
+  const scale = 0.8 * Math.min(canvas.width / projWidth, canvas.height / projHeight);
+
+  // Offset para centrar el objeto
+  const offsetX = canvas.width/2 - scale * (projMinX + projMaxX)/2;
+  const offsetY = canvas.height/2 - scale * (projMinY + projMaxY)/2;
+
+  function iso(x, y, z) {
+    const pr = isoRaw(x, y, z);
+    return {
+      x: offsetX + pr.x * scale,
+      y: offsetY + pr.y * scale
+    };
+  }
+
+  ctx.save();
+  ctx.lineWidth = Math.max(grosorPared * 4, 2);
+  // Luz simulada: girada 10° en Z respecto a la derecha, alejada
+  const deg = 30 * Math.PI / 180;
+  const baseX = 0.7, baseY = 0.0;
+  const light = {
+    x: baseX * Math.cos(deg) - baseY * Math.sin(deg),
+    y: baseX * Math.sin(deg) + baseY * Math.cos(deg),
+    z: 0.3
+  };
+  // Color base azul medio
+  const baseR = 60, baseG = 110, baseB = 180;
+  for (let i = 1; i < points.length; i++) {
+    const p0 = iso(points[i-1].x, points[i-1].y, points[i-1].z);
+    const p1 = iso(points[i].x, points[i].y, points[i].z);
+    // Vector del segmento en 3D
+    const dx = points[i].x - points[i-1].x;
+    const dy = points[i].y - points[i-1].y;
+    const dz = points[i].z - points[i-1].z;
+    // Normalizar vector
+    const len = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    const nx = dx/len, ny = dy/len, nz = dz/len;
+    // Producto punto con la luz
+    let dot = nx*light.x + ny*light.y + nz*light.z;
+    dot = Math.max(dot, 0); // solo luz positiva
+    // Brillo entre 0.45 y 1
+    const brightness = 0.45 + 0.55 * dot;
+    const r = Math.round(baseR * brightness);
+    const g = Math.round(baseG * brightness);
+    const b = Math.round(baseB * brightness);
+    const alpha = 0.92;
+    const color = `rgba(${r},${g},${b},${alpha})`;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Elimino listeners de parámetros para la previsualización 3D
+// Solo renderizo drawPreview3D cuando se abre el modal
+drawPreview3D();
