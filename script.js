@@ -1,5 +1,64 @@
 // Sincronizar sliders y cajas de texto en columna de parámetros
 document.addEventListener('DOMContentLoaded', function() {
+  // Botón cargar parámetros
+  const uploadBtn = document.getElementById('uploadParamsBtn');
+  const uploadInput = document.getElementById('uploadParamsInput');
+  if (uploadBtn && uploadInput) {
+    uploadBtn.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const text = ev.target.result;
+        // Buscar bloque de parámetros en comentarios al final
+        const paramBlock = text.match(/;PARAMS_START([\s\S]*?);PARAMS_END/);
+        if (paramBlock) {
+          const lines = paramBlock[1].split(/\r?\n/);
+          lines.forEach(line => {
+            const m = line.match(/^;\s*(\w+)=(.+)$/);
+            if (m) {
+              const key = m[1], val = m[2];
+              const input = document.getElementById(key);
+              if (input) input.value = val;
+              // Si es slider horizontal
+              if (/^perfil\d$/.test(key)) {
+                const slider = document.getElementById(key);
+                const num = document.getElementById(key + '_val');
+                if (slider && num) {
+                  slider.value = val;
+                  num.value = val;
+                }
+              }
+              // Si es slider vertical
+              if (key === 'alturaSlider') {
+                const slider = document.getElementById('alturaSlider');
+                const num = document.getElementById('alturaSlider_val');
+                if (slider && num) {
+                  slider.value = val;
+                  num.value = val;
+                }
+              }
+            }
+          });
+          // Refrescar todos los canvas
+          if (typeof drawTopView === 'function') drawTopView();
+          if (typeof drawPerfil === 'function') drawPerfil();
+          if (typeof drawPreview3D === 'function') drawPreview3D();
+          // Abrir modal de previsualización 3D
+          const previewModal = document.getElementById('previewModal');
+          if (previewModal) {
+            previewModal.style.display = 'flex';
+            if (typeof resizePreviewCanvas === 'function') resizePreviewCanvas();
+            setTimeout(() => { drawPreview3D && drawPreview3D(); }, 100);
+          }
+        } else {
+          alert('No se encontraron parámetros en el archivo.\nDebe ser un G-code generado por esta página.');
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
   const paramSliders = [
     {slider: 'pared_slider', input: 'pared'},
     {slider: 'alturaCapa_slider', input: 'alturaCapa'},
