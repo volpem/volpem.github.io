@@ -246,6 +246,12 @@ body {
   justify-items: stretch;
 }
 
+/* Footer debe ocupar el ancho completo debajo de todas las columnas */
+.responsive-grid > footer.col {
+  grid-column: 1 / -1; /* span full width */
+  text-align: center;
+}
+
 @media (max-width: 1200px) {
   .responsive-grid {
     grid-template-columns: repeat(2, 1fr);

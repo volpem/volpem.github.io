@@ -699,8 +699,10 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
   let distanciaAcumulada = 0;
   for (let i = 0; i <= pasos; i++) {
     angulo += pasoAngulo;
-    const z = i * subidaPorPaso;
-    const diametroActual = interpDiametroSpline(z);
+  const zCalculado = i * subidaPorPaso;
+  // Geometría: usar z real (limitado al tope) para el radio
+  const zGeom = Math.min(zCalculado, altura);
+  const diametroActual = interpDiametroSpline(zGeom);
     const radio = diametroActual / 2;
     // Centro helicoidal
     const cx = offsetX + radio * Math.cos(angulo);
@@ -711,16 +713,16 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     const dxyTray = Math.sqrt(dxTray * dxTray + dyTray * dyTray);
     const distanciaTray = Math.sqrt(dxyTray * dxyTray + subidaPorPaso * subidaPorPaso);
     distanciaAcumulada += distanciaTray;
-    // Ángulo de giro: vueltasTranslacion vueltas por capa (sentido invertido)
+    // Ángulo de giro: vueltasTranslacion vueltas por capa
     const vueltasPorCapa = params.vueltasTranslacion;
     const moduloDesfase = params.moduloDesfase;
     const radioGiro = params.diametroGiro / 2;
-    // Progreso dentro de la capa (0 a 1)
-    const zRel = (z % params.alturaCapa) / params.alturaCapa;
-    // Número de vuelta actual en la capa (sentido invertido)
-    const vueltaActual = vueltasPorCapa * zRel;
-    // Ángulo base de la vuelta actual + desfase interpolado entre capas
-    const layer = Math.floor(z / params.alturaCapa);
+    // Cálculo de capa y proporción dentro de la capa, basado SIEMPRE en zCalculado
+  const layer = Math.floor(zCalculado / params.alturaCapa);
+  const zRel = (zCalculado % params.alturaCapa) / params.alturaCapa; // 0..1 dentro de la capa
+  const isFirstLayer = layer === 0;
+  // Progreso de patrón normal
+  const vueltaActual = vueltasPorCapa * zRel;
     let phase = vueltaActual * 2 * Math.PI;
     if (moduloDesfase !== 0) {
       // moduloDesfase ahora es porcentaje (-50 a +50)
@@ -745,7 +747,15 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
     }
     const F = Math.round(velocidad * 60); // mm/min
 
-    const volumen = params.pared * params.alturaCapa * distancia * params.flujo;
+    // Altura efectiva para el flujo según la lógica solicitada
+  let alturaEf;
+  if (isFirstLayer) {
+      // De h/2 a h a lo largo de la primera capa
+      alturaEf = params.alturaCapa * (0.5 + 0.5 * zRel);
+    } else {
+      alturaEf = params.alturaCapa;
+    }
+    const volumen = params.pared * alturaEf * distancia * params.flujo;
     const eStep = volumen / areaFilamento;
     eTotal += eStep;
 
@@ -755,13 +765,21 @@ document.getElementById("downloadBtn").addEventListener("click", function() {
       gcode.push(`;LAYER:${layer}`);
       lastLayer = layer;
     }
-    // Activar fan solo en la primera capa por encima de 0.5mm
-    if (!fanActivated && z > 0.5) {
+    // Activar fan solo cuando la boquilla está por encima de 0.5mm
+    // Altura de impresión real (no geometría)
+    let zPrint;
+    if (isFirstLayer) {
+      // Primera capa: Z sube desde h/2 hasta h
+      zPrint = Math.min(altura, params.alturaCapa * (0.5 + 0.5 * zRel));
+    } else {
+      zPrint = Math.min(zCalculado, altura);
+    }
+    if (!fanActivated && zPrint > 0.5) {
       gcode.push(`M106 S${fanPWM} ; Fan de capa ${params.fanCapa}%`);
       fanActivated = true;
     }
 
-    gcode.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${z.toFixed(3)} E${eTotal.toFixed(5)} F${F}`);
+    gcode.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${zPrint.toFixed(3)} E${eTotal.toFixed(5)} F${F}`);
 
     xPrev = x;
     yPrev = y;
@@ -829,20 +847,21 @@ function getGcodeTrajectoryReal(params) {
   let angulo = 0;
   for (let i = 0; i <= pasos; i++) {
     angulo += pasoAngulo;
-    const z = i * subidaPorPaso;
-    const diametroActual = interpDiametroSpline(z);
+  const zCalculado = i * subidaPorPaso;
+  // Geometría para radio: usar tope
+  const zGeom = Math.min(zCalculado, altura);
+  const diametroActual = interpDiametroSpline(zGeom);
     const radio = diametroActual / 2;
     // Centro helicoidal
     const cx = offsetX + radio * Math.cos(angulo);
     const cy = offsetY + radio * Math.sin(angulo);
     // Ángulo de giro: vueltasTranslacion vueltas por capa (sentido invertido)
     const vueltasPorCapa = vueltasTranslacion;
-    // Progreso dentro de la capa (0 a 1)
-    const zRel = (z % alturaCapa) / alturaCapa;
-    // Número de vuelta actual en la capa (sentido invertido)
-    const vueltaActual = vueltasPorCapa * zRel;
-    // Ángulo base de la vuelta actual + desfase interpolado entre capas
-    const layer = Math.floor(z / alturaCapa);
+  // Progreso dentro de la capa y capa actual
+  const zRel = (zCalculado % alturaCapa) / alturaCapa;
+  const layer = Math.floor(zCalculado / alturaCapa);
+  const isFirstLayer = layer === 0;
+  const vueltaActual = vueltasPorCapa * zRel;
     let phase = vueltaActual * 2 * Math.PI;
     if (moduloDesfase !== 0) {
       // moduloDesfase ahora es porcentaje (-50 a +50)
@@ -853,7 +872,14 @@ function getGcodeTrajectoryReal(params) {
     // Posición final: círculo perfecto alrededor del centro helicoidal
     const x = cx + (diametroGiro / 2) * Math.cos(phase);
     const y = cy + (diametroGiro / 2) * Math.sin(phase);
-    points.push({x, y, z});
+    // Z de impresión para visualización (igual a lógica de impresión)
+    let zPrint;
+    if (isFirstLayer) {
+      zPrint = Math.min(altura, alturaCapa * (0.5 + 0.5 * zRel));
+    } else {
+      zPrint = Math.min(zCalculado, altura);
+    }
+    points.push({x, y, z: zPrint});
   }
   return points;
 }
