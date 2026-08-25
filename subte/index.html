@@ -10,17 +10,37 @@
 <body>
 <header id="topbar">
   <div id="title">
-    <span id="logo">Ⓜ</span>
+    <span id="logo">S</span>
     <div>
       <h1>Subtes en vivo</h1>
       <p id="status">Cargando…</p>
     </div>
   </div>
   <div id="chips"></div>
+  <button id="theme" title="Cambiar entre fondo claro y oscuro">◐</button>
 </header>
+<div id="notice"></div>
 <div id="alerts"></div>
 <div id="map"></div>
-<footer id="credit">Posición estimada a partir de los arribos de la API de Transporte BA (vía anden.app) · Mapa © OpenStreetMap · © CARTO</footer>
+
+<div id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+    <div class="modal-ico">🌙</div>
+    <h2 id="modal-t">No hay subtes en vivo ahora</h2>
+    <p>La API de Transporte de la Ciudad dejó de actualizarse a las
+       <b id="modal-hora">–</b>. Fuera del horario de servicio (aproximadamente
+       de <b>5:00 a 23:00</b>) sigue respondiendo, pero devuelve siempre la
+       misma información, con todos los arribos ya vencidos.</p>
+    <p>Por eso no se muestran trenes: sería inventar dónde están. Las líneas
+       quedan <b>centelleando</b> hasta que el servicio arranque de nuevo, y ahí
+       las luces vuelven solas a su recorrido.</p>
+    <button id="modal-ok">Entendido</button>
+  </div>
+</div>
+<footer id="credit">
+  Posición estimada a partir de los arribos de la API de Transporte de la Ciudad
+  (vía anden.app). Hacé click en una estación para ver los próximos arribos.
+</footer>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="subte-data.js"></script>
 <script src="app.js"></script>
