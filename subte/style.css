@@ -42,7 +42,7 @@ body { display: flex; flex-direction: column; background: #14161a; color: #eee; 
 }
 
 /* marcadores de trenes */
-.train-marker { background: none; border: none; position: relative; }
+.train-marker { background: none; border: none; }
 .train-marker .hdg {
   position: absolute; inset: 0; display: flex; justify-content: center;
   transition: transform .5s;
