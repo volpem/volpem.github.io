@@ -1,0 +1,82 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+body { display: flex; flex-direction: column; background: #14161a; color: #eee; }
+
+#topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; background: #1c1f24; border-bottom: 1px solid #2c3038;
+  flex-wrap: wrap;
+}
+#title { display: flex; align-items: center; gap: 10px; }
+#logo {
+  width: 38px; height: 38px; border-radius: 50%; background: #ffd200; color: #14161a;
+  display: grid; place-items: center; font-size: 24px; font-weight: 700;
+}
+#title h1 { font-size: 17px; font-weight: 700; }
+#status { font-size: 12px; color: #9aa3af; }
+
+#chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  padding: 5px 10px; border-radius: 999px; border: 1px solid #3a3f48;
+  background: #24272d; font-size: 13px; font-weight: 600; transition: opacity .15s;
+}
+.chip .dot { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; font-weight: 800; }
+.chip .n { color: #9aa3af; font-weight: 500; font-size: 12px; }
+.chip.off { opacity: .35; }
+
+#alerts { background: #1c1f24; }
+.alert-item {
+  padding: 6px 16px; font-size: 12.5px; color: #ffce4d; border-bottom: 1px solid #2c3038;
+  display: flex; gap: 8px; align-items: baseline;
+}
+.alert-item b { flex: none; }
+
+#map { flex: 1; min-height: 0; background: #0e1013; }
+
+#credit {
+  padding: 4px 16px; font-size: 10.5px; color: #6b7280; background: #1c1f24;
+  border-top: 1px solid #2c3038;
+}
+
+/* marcadores de trenes */
+.train-marker { background: none; border: none; position: relative; }
+.train-marker .hdg {
+  position: absolute; inset: 0; display: flex; justify-content: center;
+  transition: transform .5s;
+}
+.train-marker .tip {
+  width: 0; height: 0; margin-top: -1px;
+  border-left: 6px solid transparent; border-right: 6px solid transparent;
+  border-bottom: 8px solid #fff;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.6));
+}
+.train-marker .train {
+  position: absolute; inset: 6px; border-radius: 50%;
+  border: 2.5px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.55);
+  display: grid; place-items: center; color: #fff;
+  font-size: 10px; font-weight: 800; font-family: inherit;
+  transition: transform .15s;
+}
+.train-marker:hover .train { transform: scale(1.25); }
+.train-marker .dark { color: #14161a; }
+
+/* estaciones */
+.station-dot {
+  background: #fff; border: 2px solid #555; border-radius: 50%;
+}
+
+.leaflet-tooltip.subte-tip {
+  background: #22252b; color: #eee; border: 1px solid #3a3f48; border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.4); font-size: 12.5px; padding: 8px 10px;
+}
+.leaflet-tooltip.subte-tip::before { display: none; }
+.subte-tip b { font-size: 13px; }
+.subte-tip .eta { color: #9aa3af; }
+
+@media (max-width: 640px) {
+  #title h1 { font-size: 15px; }
+  .chip { padding: 4px 8px; font-size: 12px; }
+}

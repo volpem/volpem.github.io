@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subtes en vivo — Buenos Aires</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <div id="title">
+    <span id="logo">Ⓜ</span>
+    <div>
+      <h1>Subtes en vivo</h1>
+      <p id="status">Cargando…</p>
+    </div>
+  </div>
+  <div id="chips"></div>
+</header>
+<div id="alerts"></div>
+<div id="map"></div>
+<footer id="credit">Posición estimada a partir de los arribos de la API de Transporte BA (vía anden.app) · Mapa © OpenStreetMap · © CARTO</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="subte-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
