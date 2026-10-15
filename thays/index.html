@@ -118,6 +118,10 @@
       <label>Escalonado <b id="vEsc">no</b></label>
       <input id="pEsc" type="range" min="0" max="8" step="1" value="0">
     </div>
+    <div class="row">
+      <label>Suavizado del trazo <b id="vSuaT">medio</b></label>
+      <input id="pSuaT" type="range" min="0" max="5" step="1" value="2">
+    </div>
     <p class="nota" id="geom"></p>
   </div>
 
@@ -126,7 +130,7 @@
   <div class="leyenda" id="legPend" style="display:none">
     <span><i style="background:#e2574c"></i>&gt; 1:3</span>
     <span><i style="background:#e8a33d"></i>&gt; 1:12</span>
-    <span><i style="background:#7dbf59"></i>accesible</span>
+    <span>lo que cumple no se tiñe</span>
   </div>
   <label class="chk"><input id="vCur" type="checkbox" checked> Curvas de nivel (1 m)</label>
   <label class="chk"><input id="vRet" type="checkbox"> Retícula</label>
@@ -280,10 +284,10 @@ mat.onBeforeCompile = s => {
       // verificacion de pendientes, corregida por la exageracion vertical
       vec3 n = normalize(vNW);
       float pend = length(n.xz) / max(abs(n.y), 1e-4) / max(uExag, 0.0001);
-      vec3 pc = vec3(0.49,0.75,0.35);
-      pc = mix(pc, vec3(0.91,0.64,0.24), smoothstep(0.082,0.086,pend));
-      pc = mix(pc, vec3(0.886,0.341,0.298), smoothstep(0.330,0.337,pend));
-      c = mix(c, mix(c, pc, 0.72), uPend);
+      float aviso = smoothstep(0.082, 0.090, pend);                 // pasa 1:12
+      vec3 pc = mix(vec3(0.91,0.64,0.24), vec3(0.886,0.341,0.298),
+                    smoothstep(0.330, 0.340, pend));                // pasa 1:3
+      c = mix(c, mix(c, pc, 0.6), uPend * aviso);   // lo que cumple queda con la foto intacta
 
       gl_FragColor = vec4(c, gl_FragColor.a);`);
 };
@@ -303,7 +307,34 @@ const fmt = (x, n=2) => x.toFixed(n);
 let curvas = [], sel = -1, nextId = 1;
 let modo = 'editar', trazo = [], fantasma = null, redibujando = -1;
 
-const nuevaParams = () => ({ alt:1.2, anc:6, per:'suave', sua:.5, esc:0 });
+const nuevaParams = () => ({ alt:1.2, anc:6, per:'suave', sua:.5, esc:0, suaT:2 });
+
+/* ---- el trazo a mano se remuestrea y se suaviza con Chaikin ---- */
+function remuestrear(pts, paso){
+  if (pts.length < 2) return pts.slice();
+  const out = [pts[0]];
+  for (const q of pts)
+    if (Math.hypot(q.x - out[out.length-1].x, q.z - out[out.length-1].z) >= paso) out.push(q);
+  return out;
+}
+function chaikin(pts, cerrada){
+  const n = pts.length, out = [];
+  if (n < 3) return pts.slice();
+  if (!cerrada) out.push(pts[0]);
+  const lim = cerrada ? n : n - 1;
+  for (let i = 0; i < lim; i++){
+    const a = pts[i], b = pts[(i+1) % n];
+    out.push({ x:a.x*0.75 + b.x*0.25, z:a.z*0.75 + b.z*0.25 });
+    out.push({ x:a.x*0.25 + b.x*0.75, z:a.z*0.25 + b.z*0.75 });
+  }
+  if (!cerrada) out.push(pts[n-1]);
+  return out;
+}
+function suavizar(bruto, cerrada, iter){
+  let p = remuestrear(bruto, 1.0);
+  for (let i = 0; i < iter && p.length > 2; i++) p = chaikin(p, cerrada);
+  return remuestrear(p, 1.1);
+}
 
 // distancia con signo a la polilinea; negativa dentro de una curva cerrada
 function distField(c){
@@ -415,9 +446,8 @@ function dibujarLineas(){
   if (fantasma && fantasma.pts.length >= 2)
     capaLineas.add(lineaDe(fantasma.pts, fantasma.cerrada, 0xb9e04a, .4, true));
   if (trazo.length >= 2) capaLineas.add(lineaDe(trazo, false, 0xb9e04a, .95));
-  for (const q of trazo){                       // marcas de los puntos ya fijados
-    if (q.prev) continue;
-    const m = new THREE.Mesh(marcaGeo, marcaMat);
+  if (trazo.length){                            // marca del arranque del trazo
+    const q = trazo[0], m = new THREE.Mesh(marcaGeo, marcaMat);
     m.position.set(q.x, cotaEn(q.x, q.z) + 0.35, q.z);
     m.renderOrder = 10; capaLineas.add(m);
   }
@@ -457,7 +487,8 @@ function refrescarUI(){
   $('hInsp').textContent = c ? 'Parámetros · ' + c.nombre : 'Parámetros';
   const p = c ? c.par : nuevaParams();
   $('pAlt').value = p.alt; $('pAnc').value = p.anc; $('pPer').value = p.per;
-  $('pSua').value = p.sua*100; $('pEsc').value = p.esc;
+  $('pSua').value = p.sua*100; $('pEsc').value = p.esc; $('pSuaT').value = p.suaT;
+  $('vSuaT').textContent = ['crudo','apenas','medio','blando','muy blando','fundido'][p.suaT];
   $('vAlt').textContent = (p.alt > 0 ? '+' : '') + fmt(p.alt) + ' m';
   $('vAnc').textContent = fmt(p.anc,1) + ' m';
   $('vSua').textContent = Math.round(p.sua*100) + ' %';
@@ -483,6 +514,17 @@ const bindP = (id, key, mul = 1) => $(id).addEventListener('input', e => {
   refrescarUI(); pedirRecalculo();
 });
 bindP('pAlt','alt'); bindP('pAnc','anc'); bindP('pSua','sua',.01); bindP('pEsc','esc');
+
+// el suavizado del trazo rehace la geometria de la curva: se aplica al soltar
+$('pSuaT').addEventListener('input', e => {
+  $('vSuaT').textContent = ['crudo','apenas','medio','blando','muy blando','fundido'][+e.target.value];
+});
+$('pSuaT').addEventListener('change', e => {
+  const c = curvas[sel]; if (!c) return;
+  c.par.suaT = +e.target.value;
+  c.pts = suavizar(c.ptsBruto, c.cerrada, c.par.suaT);
+  distField(c); refrescarUI(); recalcular();
+});
 $('pPer').addEventListener('change', e => {
   const c = curvas[sel]; if (!c) return;
   c.par.per = e.target.value; refrescarUI(); recalcular();
@@ -490,7 +532,7 @@ $('pPer').addEventListener('change', e => {
 
 /* ---- herramientas ---- */
 const AYUDA = {
-  dibujar: 'Clic para cada punto. <kbd>Enter</kbd> cierra la figura, <kbd>Esc</kbd> cancela. Volver sobre el primer punto también cierra.',
+  dibujar: 'Arrastrá sobre el parque como con un lápiz. Al soltar se suaviza el trazo; si volvés cerca del arranque la figura se cierra sola. <kbd>Esc</kbd> cancela.',
   editar:  'Clic sobre una curva para seleccionarla y editar sus parámetros.',
   orbita:  'Arrastrar gira la vista, <kbd>clic der.</kbd> encuadra, rueda hace zoom.'
 };
@@ -510,24 +552,26 @@ $('tDib').onclick = () => setModo('dibujar');
 $('tSel').onclick = () => setModo('editar');
 $('tOrb').onclick = () => setModo('orbita');
 
-function cerrarTrazo(cerrada){
-  const pts = trazo.filter(p => !p.prev);
-  if (pts.length < 2){ trazo = []; dibujarLineas(); return; }
+function cerrarTrazo(){
+  const bruto = remuestrear(trazo, 0.6);
+  if (bruto.length < 4){ trazo = []; dibujarLineas(); aviso('Arrastrá para dibujar el trazo'); return; }
+  // si el trazo vuelve cerca de donde empezó, se cierra solo
+  const cerrada = Math.hypot(bruto[0].x - bruto[bruto.length-1].x,
+                             bruto[0].z - bruto[bruto.length-1].z) < 9;
   if (redibujando >= 0){
     const c = curvas[redibujando];
-    c.pts = pts; c.cerrada = cerrada; distField(c);
-    sel = redibujando;
+    c.ptsBruto = bruto; c.cerrada = cerrada;
+    c.pts = suavizar(bruto, cerrada, c.par.suaT);
+    distField(c); sel = redibujando;
   } else {
-    const c = { id:nextId, nombre:'Curva ' + nextId, pts, cerrada, visible:true, par:nuevaParams() };
+    const c = { id:nextId, nombre:'Curva ' + nextId, ptsBruto:bruto, cerrada,
+                visible:true, par:nuevaParams() };
+    c.pts = suavizar(bruto, cerrada, c.par.suaT);
     nextId++; distField(c); curvas.push(c); sel = curvas.length - 1;
   }
   setModo('editar'); refrescarUI(); recalcular();
 }
-addEventListener('keydown', e => {
-  if (modo === 'dibujar' && e.key === 'Enter'){ cerrarTrazo(true); e.preventDefault(); }
-  if (modo === 'dibujar' && e.key === 'a'){ cerrarTrazo(false); }
-  if (e.key === 'Escape') setModo('editar');
-});
+addEventListener('keydown', e => { if (e.key === 'Escape') setModo('editar'); });
 
 $('redib').onclick = () => {
   const c = curvas[sel]; if (!c) return;
@@ -540,6 +584,7 @@ $('redib').onclick = () => {
 $('dup').onclick = () => {
   const c = curvas[sel]; if (!c) return;
   curvas.push({ id:nextId, nombre:'Curva ' + nextId, pts:c.pts.map(p => ({...p})),
+                ptsBruto:c.ptsBruto.map(p => ({...p})),
                 cerrada:c.cerrada, visible:true, par:{...c.par}, dist:c.dist });
   nextId++; sel = curvas.length - 1; refrescarUI(); recalcular();
 };
@@ -576,23 +621,31 @@ function distAPolilinea(c, x, z){
   }
   return dd;
 }
+let trazando = false;
 renderer.domElement.addEventListener('pointermove', e => {
   if (modo === 'orbita') return;
   pick(e);
-  if (modo === 'dibujar' && trazo.length && hover){
-    trazo[trazo.length-1] = { x:hover.x, z:hover.z, prev:true };
-    dibujarLineas();
+  if (trazando && hover){
+    const u = trazo[trazo.length-1];
+    if (!u || Math.hypot(hover.x-u.x, hover.z-u.z) > 0.5){
+      trazo.push({ x:hover.x, z:hover.z });
+      dibujarLineas();
+    }
   }
+});
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!trazando) return;
+  trazando = false;
+  try { renderer.domElement.releasePointerCapture(e.pointerId); } catch(_){}
+  cerrarTrazo();
 });
 renderer.domElement.addEventListener('pointerdown', e => {
   if (modo === 'orbita' || e.button !== 0) return;
   pick(e); if (!hover) return;
 
-  if (modo === 'dibujar'){
-    const p = { x:hover.x, z:hover.z };
-    if (trazo.length) trazo.pop();                        // saca el punto de previsualizacion
-    if (trazo.length > 2 && Math.hypot(p.x-trazo[0].x, p.z-trazo[0].z) < 3.5){ cerrarTrazo(true); return; }
-    trazo.push(p, { ...p, prev:true });
+  if (modo === 'dibujar'){                 // se dibuja arrastrando, como con un lapiz
+    trazando = true; trazo = [{ x:hover.x, z:hover.z }];
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch(_){}
     dibujarLineas();
     return;
   }
@@ -629,7 +682,7 @@ function baja(blob, nombre){
 $('guardar').onclick = () => {
   const data = { escala:M_PER_PX, curvas: curvas.map(c => ({
     nombre:c.nombre, cerrada:c.cerrada, visible:c.visible, par:c.par,
-    pts:c.pts.map(p => ({ x:+p.x.toFixed(2), z:+p.z.toFixed(2) })) })) };
+    ptsBruto:c.ptsBruto.map(p => ({ x:+p.x.toFixed(2), z:+p.z.toFixed(2) })) })) };
   baja(new Blob([JSON.stringify(data, null, 1)], {type:'application/json'}), 'topografia-parque.json');
 };
 $('abrir').onclick = () => $('file').click();
@@ -639,7 +692,12 @@ $('file').onchange = e => {
   r.onload = () => {
     try {
       const d = JSON.parse(r.result);
-      curvas = d.curvas.map(c => ({ ...c, id:nextId++, par:{ ...nuevaParams(), ...c.par } }));
+      curvas = d.curvas.map(c => {
+        const n = { ...c, id:nextId++, par:{ ...nuevaParams(), ...c.par } };
+        n.ptsBruto = n.ptsBruto || n.pts;                  // compatibilidad con proyectos viejos
+        n.pts = suavizar(n.ptsBruto, n.cerrada, n.par.suaT);
+        return n;
+      });
       curvas.forEach(distField);
       sel = curvas.length - 1; refrescarUI(); recalcular();
       aviso('Proyecto cargado: ' + curvas.length + ' curvas');
