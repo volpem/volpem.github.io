@@ -118,6 +118,9 @@
       <label>Escalonado <b id="vEsc">no</b></label>
       <input id="pEsc" type="range" min="0" max="8" step="1" value="0">
     </div>
+    <div class="row" id="filaLado">
+      <button id="pLado" style="width:100%">Escalona de los dos lados</button>
+    </div>
     <div class="row">
       <label>Suavizado del trazo <b id="vSuaT">medio</b></label>
       <input id="pSuaT" type="range" min="0" max="5" step="1" value="2">
@@ -307,7 +310,7 @@ const fmt = (x, n=2) => x.toFixed(n);
 let curvas = [], sel = -1, nextId = 1;
 let modo = 'editar', trazo = [], fantasma = null, redibujando = -1;
 
-const nuevaParams = () => ({ alt:1.2, anc:6, per:'suave', sua:.5, esc:0, suaT:2 });
+const nuevaParams = () => ({ alt:1.2, anc:6, per:'suave', sua:.5, esc:0, escLado:0, suaT:2 });
 
 /* ---- el trazo a mano se remuestrea y se suaviza con Chaikin ---- */
 function remuestrear(pts, paso){
@@ -343,6 +346,7 @@ function distField(c){
   for (let k = 0; k < NV; k++){
     const x = px_[k], z = pz_[k];
     let best = Infinity;
+    let lado = 1;
     for (let i = 0; i < lim; i++){
       const a = p[i], b = p[(i+1) % n];
       const vx = b.x - a.x, vz = b.z - a.z, L2 = vx*vx + vz*vz;
@@ -350,9 +354,10 @@ function distField(c){
       t = t < 0 ? 0 : t > 1 ? 1 : t;
       const dx = x - (a.x + vx*t), dz = z - (a.z + vz*t);
       const dd = dx*dx + dz*dz;
-      if (dd < best) best = dd;
+      if (dd < best){ best = dd; lado = (vx*(z-a.z) - vz*(x-a.x)) >= 0 ? 1 : -1; }
     }
     best = Math.sqrt(best);
+    if (!c.cerrada) best *= lado;   // en las abiertas el signo dice de qué lado del trazo cae
     if (c.cerrada){
       let dentro = false;
       for (let i = 0, j = n-1; i < n; j = i++)
@@ -365,30 +370,55 @@ function distField(c){
   c.dist = d;
 }
 
+const perfilF = (per, s) =>
+    per === 'lineal'  ? s
+  : per === 'concava' ? s*s
+  : per === 'convexa' ? Math.sqrt(s)
+  :                     s*s*(3 - 2*s);
+const suave01 = x => x*x*(3 - 2*x);
+
+// ancho del quiebre entre escalones, como fracción de la huella.
+// nunca por debajo de lo que la malla puede resolver: si no, el escalón se pixela.
+function anchoQuiebre(p){
+  const huella = p.anc / p.esc;
+  return Math.min(0.98, Math.max(p.sua, Math.min(0.95, (DSTEP*1.7) / huella)));
+}
+// escalona una rampa normalizada f (0..1) en p.esc tramos, con alzadas de ancho finito
+function terracear(f, p){
+  const r = anchoQuiebre(p);
+  const u = f * p.esc, k = Math.floor(u), fr = u - k;
+  const a = 0.5 - r/2, b = 0.5 + r/2;
+  const x = fr <= a ? 0 : fr >= b ? 1 : (fr - a) / (b - a);
+  return (k + suave01(x)) / p.esc;
+}
+
 function aporte(c, d){
   const p = c.par;
-  if (d <= 0) return p.alt;                              // meseta interior
-  const t = d / p.anc;
+  let lado = 1, dd = d;
+  if (c.cerrada){ if (d <= 0) return p.alt; }            // meseta interior
+  else { lado = d < 0 ? -1 : 1; dd = d < 0 ? -d : d; }
+  const t = dd / p.anc;
   if (t >= 1) return 0;
-  const s = 1 - t;
-  let f;
-  if (p.esc > 0) f = Math.ceil(s * p.esc) / p.esc;       // terrazas de huella constante
-  else {
-    f = p.per === 'lineal'  ? s
-      : p.per === 'concava' ? s*s
-      : p.per === 'convexa' ? Math.sqrt(s)
-      : s*s*(3 - 2*s);
-    f = f * (1 - p.sua) + f*f*(3 - 2*f) * p.sua;         // redondeo de pie y cresta
-  }
+  let f = perfilF(p.per, 1 - t);
+  if (p.esc > 0 && (p.escLado === 0 || p.escLado === lado)) f = terracear(f, p);
+  else f = f * (1 - p.sua) + suave01(f) * p.sua;         // redondeo de pie y cresta
   return p.alt * f;
 }
 
+const subeMax = new Float32Array(NVMAX), bajaMin = new Float32Array(NVMAX);
 function recalcular(){
-  hgt.fill(0);
+  // donde dos curvas se cruzan manda la más alta, no la suma;
+  // los desmontes se combinan por el más profundo y después se suman a los terraplenes
+  subeMax.fill(0); bajaMin.fill(0);
   for (const c of curvas){
     if (!c.visible || !c.dist) continue;
-    for (let k = 0; k < NV; k++) hgt[k] += aporte(c, c.dist[k]);
+    for (let k = 0; k < NV; k++){
+      const a = aporte(c, c.dist[k]);
+      if (a > subeMax[k]) subeMax[k] = a;
+      else if (a < bajaMin[k]) bajaMin[k] = a;
+    }
   }
+  for (let k = 0; k < NV; k++) hgt[k] = subeMax[k] + bajaMin[k];
   const p = geo.attributes.position.array;
   let corte = 0, relleno = 0;
   for (let k = 0; k < NV; k++){
@@ -493,14 +523,23 @@ function refrescarUI(){
   $('vAnc').textContent = fmt(p.anc,1) + ' m';
   $('vSua').textContent = Math.round(p.sua*100) + ' %';
   $('vEsc').textContent = p.esc ? p.esc + ' escalones' : 'no';
-  $('pPer').disabled = p.esc > 0;
-  $('pSua').disabled = p.esc > 0;
+
+  // lado del escalonado
+  const abierta = c && !c.cerrada;
+  $('filaLado').style.display = p.esc > 0 ? 'block' : 'none';
+  $('pLado').disabled = !abierta;
+  $('pLado').textContent = !abierta ? 'Escalona todo el talud'
+    : p.escLado === 0 ? 'Escalona de los dos lados'
+    : p.escLado === 1 ? 'Escalona sólo el lado A ⟲'
+    :                   'Escalona sólo el lado B ⟲';
 
   // lectura constructiva
   if (p.esc > 0){
     const alz = Math.abs(p.alt)/p.esc, hue = p.anc/p.esc;
+    const q = anchoQuiebre(p);
     $('geom').textContent = `Alzada ${fmt(alz)} m · huella ${fmt(hue)} m` +
-      (alz > 0.37 && alz < 0.53 ? ' — altura de asiento' : '');
+      (alz > 0.37 && alz < 0.53 ? ' (altura de asiento)' : '') +
+      ` · quiebre ${fmt(q*hue)} m` + (q > p.sua + 0.01 ? ' — mínimo que resuelve la malla' : '');
   } else {
     const m = Math.abs(p.alt) / p.anc;
     $('geom').textContent = `Pendiente media ${m > 0.001 ? '1:' + fmt(1/m,1) : '—'} (${fmt(m*100,1)} %) · ` +
@@ -525,6 +564,11 @@ $('pSuaT').addEventListener('change', e => {
   c.pts = suavizar(c.ptsBruto, c.cerrada, c.par.suaT);
   distField(c); refrescarUI(); recalcular();
 });
+$('pLado').onclick = () => {
+  const c = curvas[sel]; if (!c || c.cerrada) return;
+  c.par.escLado = c.par.escLado === 0 ? 1 : c.par.escLado === 1 ? -1 : 0;
+  refrescarUI(); recalcular();
+};
 $('pPer').addEventListener('change', e => {
   const c = curvas[sel]; if (!c) return;
   c.par.per = e.target.value; refrescarUI(); recalcular();
