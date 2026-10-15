@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Topografía del Parque</title>
+<style>
+  :root{
+    --bg:#11140f; --panel:rgba(20,24,18,.88); --line:rgba(255,255,255,.12);
+    --fg:#eef2e6; --muted:#9aa791; --acc:#b9e04a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:13px/1.45 ui-sans-serif,system-ui,"Segoe UI",sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0}
+  canvas{display:block;touch-action:none}
+  #panel{position:fixed;top:12px;left:12px;width:270px;max-height:calc(100% - 24px);
+    overflow:auto;background:var(--panel);backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:12px;padding:14px 14px 12px}
+  h1{font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:11px;margin:0 0 12px}
+  .row{margin:10px 0}
+  label{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  label b{color:var(--acc);font-size:12px;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:6px 0 0;accent-color:var(--acc)}
+  .chk{display:flex;align-items:center;gap:8px;color:var(--fg);
+    font-size:12px;text-transform:none;letter-spacing:0;margin:7px 0}
+  .chk input{accent-color:var(--acc)}
+  .btns{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  button{flex:1;min-width:76px;background:#232a1c;color:var(--fg);border:1px solid var(--line);
+    border-radius:8px;padding:7px 8px;font-size:11px;cursor:pointer}
+  button:hover{background:#2d3524;border-color:var(--acc)}
+  hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+  .help{color:var(--muted);font-size:11px}
+  .help kbd{background:#232a1c;border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;font:inherit;color:var(--fg)}
+  #hud{position:fixed;right:12px;bottom:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:8px 12px;font-variant-numeric:tabular-nums;font-size:12px}
+  #hud span{color:var(--acc)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="panel">
+  <h1>Topografía del Parque</h1>
+  <p class="sub">Malla de offset desde la plaza de hormigón</p>
+
+  <div class="row">
+    <label>Radio del pincel <b id="vBrush">12 m</b></label>
+    <input id="brush" type="range" min="2" max="60" step="1" value="12">
+  </div>
+  <div class="row">
+    <label>Suavidad del borde <b id="vFall">60 %</b></label>
+    <input id="fall" type="range" min="0" max="100" step="1" value="60">
+  </div>
+  <div class="row">
+    <label>Paso vertical <b id="vStep">20 cm</b></label>
+    <input id="step" type="range" min="5" max="100" step="5" value="20">
+  </div>
+  <div class="row">
+    <label>Exageración vertical <b id="vExag">1.0×</b></label>
+    <input id="exag" type="range" min="1" max="5" step="0.1" value="1">
+  </div>
+
+  <hr>
+  <label class="chk"><input id="wire" type="checkbox"> Ver retícula</label>
+  <label class="chk"><input id="curvas" type="checkbox" checked> Curvas de nivel (1 m)</label>
+  <label class="chk"><input id="fija" type="checkbox" checked> Plaza de hormigón fija</label>
+
+  <div class="btns">
+    <button id="modo">Modo: esculpir</button>
+    <button id="reset">Aplanar</button>
+    <button id="obj">Exportar OBJ</button>
+  </div>
+
+  <hr>
+  <p class="help">
+    <kbd>clic izq.</kbd> levanta · <kbd>clic der.</kbd> baja<br>
+    arrastrar con el botón presionado esculpe en continuo<br>
+    <b>girar la vista:</b> botón del medio, o mantener <kbd>espacio</kbd>/<kbd>shift</kbd>
+    y arrastrar, o la tecla <kbd>O</kbd> / el botón <kbd>Modo</kbd> para fijar la órbita<br>
+    <kbd>rueda</kbd> zoom · en modo orbitar, <kbd>clic der.</kbd> encuadra
+  </p>
+</div>
+
+<div id="hud">cota <span id="cota">0.00</span> m · área ø <span id="dia">24</span> m</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="textura.js"></script>
+<script>
+/* ---------------------------------------------------------------
+   ESCALA
+   La foto mide 2000 x 1500 px. Tomando los colectivos de la avenida
+   (12 m de largo ≈ 175 px) resulta ≈ 0.07 m/px, o sea un ámbito de
+   140 x 105 m de parque. Todo el modelo trabaja en metros.
+----------------------------------------------------------------*/
+const IMG_W = 2000, IMG_H = 1500;
+const M_PER_PX = 0.07;
+const W = IMG_W * M_PER_PX;   // 140 m
+const H = IMG_H * M_PER_PX;   // 105 m
+
+// Elipse de hormigón (skatepark / plaza dura) medida sobre la foto, en px
+const PLAZA = { cx:1115, cy:965, a:195, b:130, rot:-35 * Math.PI/180 };
+
+// px -> metros (x este, z sur; el plano del terreno es XZ)
+const px2m = (px, py) => [ (px - IMG_W/2) * M_PER_PX, (py - IMG_H/2) * M_PER_PX ];
+
+const [PCX, PCZ] = px2m(PLAZA.cx, PLAZA.cy);
+const PA = PLAZA.a * M_PER_PX, PB = PLAZA.b * M_PER_PX;
+
+// --- malla de offset: anillos concéntricos que se abren desde la plaza ---
+const NA   = 192;   // divisiones angulares
+const NIN  = 5;     // anillos dentro de la plaza
+const DMAX = 95;    // metros de offset hacia afuera
+const DSTEP= 1.6;   // separación entre anillos (m)
+const NOUT = Math.round(DMAX / DSTEP);
+const NR   = NIN + NOUT;            // anillos totales
+const NV   = NA * (NR + 1) + 1;     // + vértice central
+
+// posición planimétrica de cada vértice
+const px_ = new Float32Array(NV), pz_ = new Float32Array(NV);
+const hgt = new Float32Array(NV);   // cota en metros
+const dOff= new Float32Array(NV);   // offset desde el borde de la plaza (<0 = adentro)
+
+function ringPoint(j, i){
+  const t = (i / NA) * Math.PI * 2;
+  const ca = Math.cos(PLAZA.rot), sa = Math.sin(PLAZA.rot);
+  const ex = PA * Math.cos(t), ey = PB * Math.sin(t);
+  const bx = ex*ca - ey*sa, bz = ex*sa + ey*ca;   // borde de la elipse (relativo al centro)
+  if (j <= NIN){                                   // adentro: elipses escaladas
+    const k = j / NIN;
+    return [PCX + bx*k, PCZ + bz*k, (k-1) * Math.hypot(bx,bz)];
+  }
+  const L = Math.hypot(bx, bz), nx = bx/L, nz = bz/L;
+  const d = (j - NIN) * DSTEP;
+  return [PCX + bx + nx*d, PCZ + bz + nz*d, d];
+}
+
+let v = 0;
+px_[v] = PCX; pz_[v] = PCZ; dOff[v] = -Math.max(PA,PB); v++;   // centro
+for (let j = 1; j <= NR; j++)
+  for (let i = 0; i < NA; i++, v++){
+    const [x, z, d] = ringPoint(j, i);
+    px_[v] = x; pz_[v] = z; dOff[v] = d;
+  }
+const NVUSED = v;
+const idx = (j, i) => j === 0 ? 0 : 1 + (j-1)*NA + ((i % NA) + NA) % NA;
+
+// --- geometría ---
+const pos = new Float32Array(NVUSED * 3);
+const uv  = new Float32Array(NVUSED * 2);
+for (let k = 0; k < NVUSED; k++){
+  pos[k*3] = px_[k]; pos[k*3+1] = 0; pos[k*3+2] = pz_[k];
+  uv[k*2]     = px_[k] / W + 0.5;
+  uv[k*2 + 1] = 0.5 - pz_[k] / H;
+}
+const tri = [];
+for (let i = 0; i < NA; i++) tri.push(0, idx(1, i+1), idx(1, i));
+for (let j = 1; j < NR; j++)
+  for (let i = 0; i < NA; i++){
+    const a = idx(j,i), b = idx(j,i+1), c = idx(j+1,i+1), d = idx(j+1,i);
+    tri.push(a, c, b, a, d, c);
+  }
+
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setAttribute('uv',       new THREE.BufferAttribute(uv, 2));
+geo.setIndex(tri);
+geo.computeVertexNormals();
+
+// --- escena ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x11140f);
+scene.fog = new THREE.Fog(0x11140f, 180, 420);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.5, 2000);
+camera.position.set(PCX + 70, 85, PCZ + 110);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.getElementById('app').appendChild(renderer.domElement);
+renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(PCX, 0, PCZ);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI/2 - 0.03;
+const BTN_SCULPT = { LEFT:null, MIDDLE:THREE.MOUSE.ROTATE, RIGHT:null };
+const BTN_ORBIT  = { LEFT:THREE.MOUSE.ROTATE, MIDDLE:THREE.MOUSE.ROTATE, RIGHT:THREE.MOUSE.PAN };
+controls.mouseButtons = BTN_SCULPT;
+
+scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x2a2e22, 0.85));
+const sun = new THREE.DirectionalLight(0xfff3dd, 0.9);
+sun.position.set(-90, 120, 60); scene.add(sun);
+
+// textura aérea + sombreado por cota y curvas de nivel
+const tex = new THREE.TextureLoader().load(window.TEXTURA_PARQUE);
+tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+
+const mat = new THREE.MeshStandardMaterial({ map:tex, roughness:0.95, metalness:0.0, side:THREE.DoubleSide });
+const uni = { uExag:{value:1}, uCurvas:{value:1} };
+mat.onBeforeCompile = s => {
+  s.uniforms.uExag = uni.uExag; s.uniforms.uCurvas = uni.uCurvas;
+  s.vertexShader = 'varying float vH;\n' + s.vertexShader.replace(
+    '#include <begin_vertex>', '#include <begin_vertex>\n vH = position.y;');
+  s.fragmentShader = 'uniform float uExag; uniform float uCurvas; varying float vH;\n' + s.fragmentShader
+    .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+      float h = vH / max(uExag, 0.0001);
+      vec3 c = gl_FragColor.rgb;
+      // fuera del encuadre de la foto: cesped neutro en vez de pixeles estirados
+      vec2 e = max(vec2(0.0) - vUv, vUv - vec2(1.0));
+      float out_ = smoothstep(0.0, 0.02, max(e.x, e.y));
+      c = mix(c, vec3(0.29,0.33,0.21), out_);
+      c = mix(c, vec3(0.78,0.90,0.35), clamp( h,0.0,6.0)/6.0*0.5);
+      c = mix(c, vec3(0.20,0.35,0.55), clamp(-h,0.0,6.0)/6.0*0.5);
+      float f = fract(h);
+      float w = fwidth(h) * 1.2;
+      float line = 1.0 - smoothstep(0.0, max(w, 0.004), min(f, 1.0 - f));
+      float slope = smoothstep(0.004, 0.03, fwidth(h));   // sin lineas donde el terreno es plano
+      c = mix(c, vec3(0.05,0.06,0.04), line * slope * uCurvas * 0.55);
+      gl_FragColor = vec4(c, gl_FragColor.a);`);
+};
+mat.extensions = { derivatives: true };
+const mesh = new THREE.Mesh(geo, mat);
+scene.add(mesh);
+
+const wireMat  = new THREE.LineBasicMaterial({ color:0x9fd13a, transparent:true, opacity:0.28 });
+const wireMesh = new THREE.LineSegments(new THREE.WireframeGeometry(geo), wireMat);
+wireMesh.visible = false; scene.add(wireMesh);
+
+// anillo-cursor del pincel
+const ringGeo = new THREE.RingGeometry(0.98, 1, 72).rotateX(-Math.PI/2);
+const cursor  = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+  color:0xb9e04a, transparent:true, opacity:0.9, depthTest:false }));
+cursor.renderOrder = 10; cursor.visible = false; scene.add(cursor);
+
+// --- UI ---
+const $ = id => document.getElementById(id);
+const S = { brush:12, fall:0.6, step:0.20, exag:1, fija:true };
+const bind = (id, out, fn, fmt) => {
+  const el = $(id);
+  const upd = () => { fn(parseFloat(el.value)); $(out).textContent = fmt(parseFloat(el.value)); };
+  el.addEventListener('input', upd); upd();
+};
+bind('brush','vBrush', x => { S.brush = x; $('dia').textContent = (x*2).toFixed(0); }, x => x+' m');
+bind('fall', 'vFall',  x => S.fall = x/100, x => x+' %');
+bind('step', 'vStep',  x => S.step = x/100, x => x+' cm');
+bind('exag', 'vExag',  x => { S.exag = x; uni.uExag.value = x; refresh(); }, x => x.toFixed(1)+'×');
+$('wire').onchange   = e => wireMesh.visible = e.target.checked;
+$('curvas').onchange = e => uni.uCurvas.value = e.target.checked ? 1 : 0;
+$('fija').onchange   = e => S.fija = e.target.checked;
+$('reset').onclick   = () => { hgt.fill(0); refresh(); };
+
+// --- esculpido ---
+function refresh(){
+  const p = geo.attributes.position.array;
+  for (let k = 0; k < NVUSED; k++) p[k*3+1] = hgt[k] * S.exag;
+  geo.attributes.position.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  const wg = new THREE.WireframeGeometry(geo);
+  wireMesh.geometry.dispose(); wireMesh.geometry = wg;
+}
+
+function sculpt(wx, wz, dir){
+  const r = S.brush, r2 = r*r;
+  const amt = dir * S.step;
+  for (let k = 0; k < NVUSED; k++){
+    if (S.fija && dOff[k] <= 0) continue;          // plaza de hormigón inmóvil
+    const dx = px_[k] - wx, dz = pz_[k] - wz;
+    const d2 = dx*dx + dz*dz;
+    if (d2 > r2) continue;
+    const t = Math.sqrt(d2) / r;                    // 0 centro -> 1 borde
+    const inner = 1 - S.fall;
+    const w = t <= inner ? 1 : (() => { const u = (t-inner)/(1-inner+1e-6); return 1 - u*u*(3-2*u); })();
+    hgt[k] += amt * w;
+  }
+  refresh();
+}
+
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let hover = null, painting = 0, orbiting = false, modoOrbita = false;
+
+function pick(e){
+  ptr.x = (e.clientX/innerWidth)*2 - 1;
+  ptr.y = -(e.clientY/innerHeight)*2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObject(mesh, false)[0];
+  hover = hit ? hit.point : null;
+  if (hover && !modoOrbita){
+    cursor.visible = true;
+    cursor.position.set(hover.x, hover.y + 0.25, hover.z);
+    cursor.scale.setScalar(S.brush);
+    $('cota').textContent = (hover.y / S.exag).toFixed(2);
+  } else cursor.visible = false;
+}
+
+renderer.domElement.addEventListener('pointermove', e => {
+  pick(e);
+  if (painting && hover) sculpt(hover.x, hover.z, painting);
+});
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (modoOrbita || e.button === 1 || e.shiftKey ||
+      controls.mouseButtons === BTN_ORBIT){ orbiting = true; return; }
+  if (e.button !== 0 && e.button !== 2) return;
+  painting = e.button === 0 ? 1 : -1;
+  renderer.domElement.setPointerCapture(e.pointerId);
+  pick(e);
+  if (hover) sculpt(hover.x, hover.z, painting);
+});
+addEventListener('pointerup', () => { painting = 0; orbiting = false; });
+renderer.domElement.addEventListener('pointerleave', () => cursor.visible = false);
+
+// orbitar con botón izquierdo sólo mientras se mantiene espacio / shift
+function setModo(on){
+  modoOrbita = on;
+  controls.mouseButtons = on ? BTN_ORBIT : BTN_SCULPT;
+  renderer.domElement.style.cursor = on ? 'grab' : 'crosshair';
+  cursor.visible = false;
+  const b = document.getElementById('modo');
+  b.textContent = on ? 'Modo: orbitar' : 'Modo: esculpir';
+  b.style.borderColor = on ? 'var(--acc)' : '';
+}
+document.getElementById('modo').onclick = () => setModo(!modoOrbita);
+setModo(false);
+
+// mantener ESPACIO o SHIFT orbita momentaneamente sin cambiar de modo; O fija el modo
+addEventListener('keydown', e => {
+  if (e.code === 'Space'){ e.preventDefault(); controls.mouseButtons = BTN_ORBIT; }
+  if (e.key === 'o' || e.key === 'O') setModo(!modoOrbita);
+});
+addEventListener('keyup', e => {
+  if (e.code === 'Space') controls.mouseButtons = modoOrbita ? BTN_ORBIT : BTN_SCULPT;
+});
+
+// --- exportar OBJ (cotas reales, sin exageración) ---
+$('obj').onclick = () => {
+  const L = ['# Topografia Parque - metros'];
+  for (let k = 0; k < NVUSED; k++)
+    L.push(`v ${px_[k].toFixed(3)} ${hgt[k].toFixed(3)} ${pz_[k].toFixed(3)}`);
+  for (let k = 0; k < NVUSED; k++)
+    L.push(`vt ${uv[k*2].toFixed(5)} ${uv[k*2+1].toFixed(5)}`);
+  for (let i = 0; i < tri.length; i += 3){
+    const a = tri[i]+1, b = tri[i+1]+1, c = tri[i+2]+1;
+    L.push(`f ${a}/${a} ${b}/${b} ${c}/${c}`);
+  }
+  const url = URL.createObjectURL(new Blob([L.join('\n')], {type:'text/plain'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'topografia-parque.obj'; a.click();
+  URL.revokeObjectURL(url);
+};
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+(function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+</script>
+</body>
+</html>
