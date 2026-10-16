@@ -170,7 +170,7 @@
 ================================================================ */
 const IMG_W = 2000, IMG_H = 1500, M_PER_PX = 0.07;
 const W = IMG_W * M_PER_PX, H = IMG_H * M_PER_PX;
-const PLAZA = { cx:1115, cy:955, a:200, b:160, rot:22 * Math.PI/180 };
+const PLAZA = { cx:1132, cy:952, a:218, b:166, rot:32 * Math.PI/180 };
 const px2m = (px, py) => [ (px - IMG_W/2) * M_PER_PX, (py - IMG_H/2) * M_PER_PX ];
 const [PCX, PCZ] = px2m(PLAZA.cx, PLAZA.cy);
 const PA = PLAZA.a * M_PER_PX, PB = PLAZA.b * M_PER_PX;
@@ -371,15 +371,17 @@ function vertMasCerca(x, z){
 }
 (function poblar(){
   for (const [ix, iy, tipo, r, h] of ESCENA.arboles){
-    const [x, z] = px2m(ix, iy);
+    // la foto da la copa; el tronco va en el pie, corrigiendo la oblicuidad
+    const [bx, by] = ESCENA.alPie(ix, iy, h);
+    const [x, z] = px2m(bx, by);
     const o = ESCENA.crear(THREE, 'arbol', [tipo, r, h]);
     o.position.set(x, 0, z);
     o.rotation.y = (ix * 7919 % 628) / 100;          // giro estable, no aleatorio
     capaVerde.add(o); anclas.push({ o, k:vertMasCerca(x, z) });
   }
-  for (const [tipo, ix, iy, rot] of ESCENA.equipo){
+  for (const [tipo, ix, iy, rot, args] of ESCENA.equipo){
     const [x, z] = px2m(ix, iy);
-    const o = ESCENA.crear(THREE, tipo);
+    const o = ESCENA.crear(THREE, tipo, args);
     o.position.set(x, 0, z);
     o.rotation.y = -rot * Math.PI/180;
     capaObras.add(o); anclas.push({ o, k:vertMasCerca(x, z) });
