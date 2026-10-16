@@ -137,6 +137,9 @@
   </div>
   <label class="chk"><input id="vCur" type="checkbox" checked> Curvas de nivel (1 m)</label>
   <label class="chk"><input id="vRet" type="checkbox"> Retícula</label>
+  <label class="chk"><input id="vObras" type="checkbox" checked> Equipamiento</label>
+  <label class="chk"><input id="vVerde" type="checkbox" checked> Arbolado</label>
+  <label class="chk"><input id="vFijo" type="checkbox" checked> Hormigón plano y fijo</label>
   <div class="row">
     <label>Exageración vertical <b id="vExa">1.0×</b></label>
     <input id="pExa" type="range" min="1" max="5" step="0.1" value="1">
@@ -157,6 +160,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="textura.js"></script>
+<script src="escena.js"></script>
 <script>
 /* ===============================================================
    ESCALA
@@ -166,7 +170,7 @@
 ================================================================ */
 const IMG_W = 2000, IMG_H = 1500, M_PER_PX = 0.07;
 const W = IMG_W * M_PER_PX, H = IMG_H * M_PER_PX;
-const PLAZA = { cx:1115, cy:965, a:195, b:130, rot:-35 * Math.PI/180 };
+const PLAZA = { cx:1115, cy:955, a:200, b:160, rot:22 * Math.PI/180 };
 const px2m = (px, py) => [ (px - IMG_W/2) * M_PER_PX, (py - IMG_H/2) * M_PER_PX ];
 const [PCX, PCZ] = px2m(PLAZA.cx, PLAZA.cy);
 const PA = PLAZA.a * M_PER_PX, PB = PLAZA.b * M_PER_PX;
@@ -221,6 +225,51 @@ for (let i = 0; i < tri.length; i += 3){
   const A = Math.abs((px_[b]-px_[a])*(pz_[c]-pz_[a]) - (px_[c]-px_[a])*(pz_[b]-pz_[a])) / 2;
   area[a] += A/3; area[b] += A/3; area[c] += A/3;
 }
+
+/* ===============================================================
+   HORMIGON FIJO
+   Las islas y los caminos quedan planos; el terreno empalma con
+   ellos en una franja de 3 m para que no aparezca un escalon.
+================================================================ */
+const BORDE = 3.0;
+const mezcla = new Float32Array(NV).fill(1);
+
+function distPoli(poli, x, z, cerrado){
+  const n = poli.length;
+  let best = Infinity;
+  const lim = cerrado ? n : n - 1;
+  for (let i = 0; i < lim; i++){
+    const a = poli[i], b = poli[(i+1) % n];
+    const vx = b[0]-a[0], vz = b[1]-a[1], L2 = vx*vx + vz*vz;
+    let t = L2 ? ((x-a[0])*vx + (z-a[1])*vz) / L2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const dx = x - (a[0] + vx*t), dz = z - (a[1] + vz*t);
+    const dd = dx*dx + dz*dz;
+    if (dd < best) best = dd;
+  }
+  best = Math.sqrt(best);
+  if (cerrado){
+    let dentro = false;
+    for (let i = 0, j = n-1; i < n; j = i++)
+      if ((poli[i][1] > z) !== (poli[j][1] > z) &&
+          x < (poli[j][0]-poli[i][0]) * (z-poli[i][1]) / (poli[j][1]-poli[i][1]) + poli[i][0]) dentro = !dentro;
+    if (dentro) best = -best;
+  }
+  return best;
+}
+
+(function construirMascara(){
+  const islas   = ESCENA.islas.map(i => ({ poli:i.poli.map(q => px2m(q[0], q[1])) }));
+  const caminos = ESCENA.caminos.map(c => ({ ancho:c.ancho, via:c.via.map(q => px2m(q[0], q[1])) }));
+  for (let k = 0; k < NV; k++){
+    const x = px_[k], z = pz_[k];
+    let d = Infinity;
+    for (const i of islas) d = Math.min(d, distPoli(i.poli, x, z, true));
+    for (const c of caminos) d = Math.min(d, distPoli(c.via, x, z, false) - c.ancho/2);
+    const t = d <= 0 ? 0 : d >= BORDE ? 1 : d / BORDE;
+    mezcla[k] = t*t*(3 - 2*t);
+  }
+})();
 
 const geo = new THREE.BufferGeometry();
 geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -302,6 +351,43 @@ const wire = new THREE.LineSegments(new THREE.WireframeGeometry(geo),
 wire.visible = false; scene.add(wire);
 
 const capaLineas = new THREE.Group(); scene.add(capaLineas);
+
+/* =================== equipamiento y arbolado ===================
+   Cada pieza se ancla al vertice de malla mas cercano, asi sigue
+   al terreno cuando una curva pasa por debajo, sin raycast.
+================================================================ */
+let fijarBases = true;
+const capaObras = new THREE.Group(), capaVerde = new THREE.Group();
+scene.add(capaObras); scene.add(capaVerde);
+const anclas = [];
+
+function vertMasCerca(x, z){
+  let mejor = 0, md = Infinity;
+  for (let k = 0; k < NV; k++){
+    const dx = px_[k]-x, dz = pz_[k]-z, d = dx*dx + dz*dz;
+    if (d < md){ md = d; mejor = k; }
+  }
+  return mejor;
+}
+(function poblar(){
+  for (const [ix, iy, tipo, r, h] of ESCENA.arboles){
+    const [x, z] = px2m(ix, iy);
+    const o = ESCENA.crear(THREE, 'arbol', [tipo, r, h]);
+    o.position.set(x, 0, z);
+    o.rotation.y = (ix * 7919 % 628) / 100;          // giro estable, no aleatorio
+    capaVerde.add(o); anclas.push({ o, k:vertMasCerca(x, z) });
+  }
+  for (const [tipo, ix, iy, rot] of ESCENA.equipo){
+    const [x, z] = px2m(ix, iy);
+    const o = ESCENA.crear(THREE, tipo);
+    o.position.set(x, 0, z);
+    o.rotation.y = -rot * Math.PI/180;
+    capaObras.add(o); anclas.push({ o, k:vertMasCerca(x, z) });
+  }
+})();
+function apoyarObjetos(){
+  for (const a of anclas) a.o.position.y = hgt[a.k] * uni.uExag.value;
+}
 
 const $ = id => document.getElementById(id);
 const fmt = (x, n=2) => x.toFixed(n);
@@ -418,7 +504,7 @@ function recalcular(){
       else if (a < bajaMin[k]) bajaMin[k] = a;
     }
   }
-  for (let k = 0; k < NV; k++) hgt[k] = subeMax[k] + bajaMin[k];
+  for (let k = 0; k < NV; k++) hgt[k] = (subeMax[k] + bajaMin[k]) * (fijarBases ? mezcla[k] : 1);
   const p = geo.attributes.position.array;
   let corte = 0, relleno = 0;
   for (let k = 0; k < NV; k++){
@@ -431,6 +517,7 @@ function recalcular(){
   $('corte').textContent   = Math.round(corte);
   $('relleno').textContent = Math.round(relleno);
   $('neto').textContent    = (relleno - corte >= 0 ? '+' : '') + Math.round(relleno - corte);
+  apoyarObjetos();
   dibujarLineas();
 }
 
@@ -708,6 +795,9 @@ $('vRet').onchange  = e => {
   if (wire.visible){ wire.geometry.dispose(); wire.geometry = new THREE.WireframeGeometry(geo); }
 };
 $('vCur').onchange  = e => uni.uCurvas.value = e.target.checked ? 1 : 0;
+$('vObras').onchange = e => capaObras.visible = e.target.checked;
+$('vVerde').onchange = e => capaVerde.visible = e.target.checked;
+$('vFijo').onchange  = e => { fijarBases = e.target.checked; recalcular(); };
 $('vPend').onchange = e => {
   uni.uPend.value = e.target.checked ? 1 : 0;
   $('legPend').style.display = e.target.checked ? 'flex' : 'none';
