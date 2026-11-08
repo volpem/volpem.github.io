@@ -77,6 +77,7 @@ button[aria-pressed="true"].toggle{background:var(--ink);color:var(--paper)}
         <option value="0.5">× 0,5</option><option value="1" selected>× 1</option><option value="2">× 2</option><option value="4">× 4</option>
       </select>
       <button id="restart">Reiniciar</button>
+      <button id="mats" class="toggle" aria-pressed="false" title="Cambia el estilo de lamina por los materiales reales">Materiales</button>
     </div>
     <div class="phase"><span class="dot"></span><span id="phase">Imprimiendo</span></div>
     <div class="read">
@@ -210,6 +211,7 @@ document.fonts&&document.fonts.ready.then(drawTpl); drawTpl();
 const stage=$('stage');
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);
+renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
 stage.insertBefore(renderer.domElement,stage.firstChild);
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(30,1,20,8000);
@@ -234,23 +236,100 @@ function glass(alpha){
 const xray=(a)=>glass(a);
 const FILL={main:solid('#ffffff','#f1d3d7',RED,.07),soft:solid('#ffffff','#f5e0e3',RED,.05),
   clay:solid('#e8616f','#a3001a','#7a0013',.10),matrix:solid('#fbe7ea','#efc3c9',RED,.05),glass:glass(.06)};
-const lineMat=(o)=>new THREE.LineBasicMaterial({color:RED,transparent:true,opacity:o});
+const lineMat=(o)=>new THREE.LineBasicMaterial({color:new THREE.Color(RED).convertSRGBToLinear(),transparent:true,opacity:o,toneMapped:false});
 const LINE={main:lineMat(.85),soft:lineMat(.55),strong:lineMat(1),faint:lineMat(.25),glass:lineMat(.5)};
 // contorno para cuerpos sin aristas vivas (perfil de aluminio, lazy susan): cáscara invertida un poco más grande
 const OUTLINE=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(RED)}},
   vertexShader:'void main(){vec4 mv=modelViewMatrix*vec4(position+normal*0.55,1.);gl_Position=projectionMatrix*mv;}',
   fragmentShader:'uniform vec3 c;void main(){gl_FragColor=vec4(c,1.);}',side:THREE.BackSide,polygonOffset:true,polygonOffsetFactor:4,polygonOffsetUnits:8});
+// ================= MATERIALES REALES =================
+// Un material por cada "mat" del modelo (ver maquina.json) mas los que se dibujan aparte.
+// Para cambiar el aspecto de una pieza alcanza con editar su fila: c = color, m = metalicidad
+// (0 = plastico o pintura, 1 = metal desnudo), r = rugosidad (0 = espejo, 1 = mate), o = opacidad.
+const MATDEF={
+  inox:   {c:'#d7dbdf', m:.95, r:.22},   // chapa de inox
+  steel:  {c:'#9aa0a6', m:.90, r:.38},   // acero, tornilleria, guias
+  alu:    {c:'#c6cace', m:.85, r:.30},   // aluminio mecanizado
+  brass:  {c:'#c9a227', m:1.0, r:.28},   // bronce
+  contour:{c:'#b4b9bf', m:.85, r:.42},   // chapa plegada
+  profile:{c:'#bfc4c9', m:.80, r:.34},   // perfil de aluminio extruido
+  thread: {c:'#a7adb3', m:.90, r:.35},   // varilla roscada
+  print:  {c:'#eceae4', m:.00, r:.55},   // piezas impresas (PLA)
+  white:  {c:'#f0f0ee', m:.00, r:.45},   // plastico blanco
+  dark:   {c:'#23262a', m:.35, r:.55},   // plastico negro
+  motor:  {c:'#2b3034', m:.55, r:.45},   // carcasa de motor
+  button: {c:'#1d2024', m:.10, r:.35},   // pulsadores
+  red:    {c:'#c0121d', m:.15, r:.40},   // piezas rojas
+  belt:   {c:'#1a1c1f', m:.05, r:.65},   // correa de goma
+  spring: {c:'#b9bec4', m:.95, r:.28},   // alambre de resorte
+  wood:   {c:'#c9a979', m:.00, r:.70},   // tabla de la cama
+  carton: {c:'#c8ac82', m:.00, r:.80},   // matriz de carton
+  clay:   {c:'#b4553f', m:.00, r:.85},   // pasta ceramica
+  hose:   {c:'#d8d2c8', m:.00, r:.38},   // manguera de silicona
+  acrylic:{c:'#dde8ec', m:.00, r:.06, o:.22}
+};
+// las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
+const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
+let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null;
+function buildEnv(){
+  // cielo de estudio: un degradado en un canvas equirrectangular, filtrado con PMREM
+  const c=document.createElement('canvas'); c.width=16; c.height=128; const g=c.getContext('2d');
+  const gr=g.createLinearGradient(0,0,0,128);
+  gr.addColorStop(0,'#ffffff'); gr.addColorStop(.46,'#e8edf2'); gr.addColorStop(.54,'#bcc3cb'); gr.addColorStop(1,'#6d727a');
+  g.fillStyle=gr; g.fillRect(0,0,16,128);
+  const t=new THREE.CanvasTexture(c); t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding;
+  const pm=new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
+  ENV=pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
+}
+function buildPBR(){
+  if(PBR) return PBR;
+  buildEnv(); PBR={};
+  for(const k in MATDEF){ const d=MATDEF[k], tr=d.o!==undefined;
+    PBR[k]=new THREE.MeshStandardMaterial({color:new THREE.Color(d.c).convertSRGBToLinear(),
+      metalness:d.m,roughness:d.r,envMap:ENV,envMapIntensity:1,side:THREE.DoubleSide,
+      transparent:tr,opacity:tr?d.o:1,depthWrite:!tr}); }
+  const g=new THREE.Group();
+  const k1=new THREE.DirectionalLight(0xffffff,1.5); k1.position.set(-420,900,620); g.add(k1);
+  const k2=new THREE.DirectionalLight(0xfff2e6,.45); k2.position.set(760,320,-520); g.add(k2);
+  g.add(new THREE.HemisphereLight(0xe6edf7,0x4b4b4b,.45));
+  scene.add(g); LIGHTS=g;
+  return PBR;
+}
+function floorGrey(){
+  if(greyTex) return greyTex;
+  const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
+  const gr=g.createRadialGradient(128,128,0,128,128,128);
+  gr.addColorStop(0,'rgba(24,26,30,.40)'); gr.addColorStop(.55,'rgba(24,26,30,.13)'); gr.addColorStop(1,'rgba(24,26,30,0)');
+  g.fillStyle=gr; g.fillRect(0,0,256,256);
+  greyTex=new THREE.CanvasTexture(c); greyTex.encoding=THREE.sRGBEncoding; return greyTex;
+}
+let pbrMode=false;
+function setMaterials(on){
+  pbrMode=on; const P=on?buildPBR():null;
+  if(LIGHTS) LIGHTS.visible=on;
+  scene.environment=on?ENV:null;
+  root.traverse(o=>{
+    if(o.isLine||o.isLineSegments||o.isPoints){ o.visible=!on; return; }
+    if(!o.isMesh&&!o.isInstancedMesh) return;
+    if(o.userData.floor){ o.material.map=on?floorGrey():o.userData.inkTex; o.material.needsUpdate=true; return; }
+    if(!o.userData.lamina) o.userData.lamina=o.material;
+    o.material=on?(P[o.userData.pbr||'steel']||P.steel):o.userData.lamina;
+  });
+  post.material.uniforms.mode.value=on?1:0;
+  document.getElementById('mats').setAttribute('aria-pressed',on?'true':'false');
+}
+
 function addDrawn(parent,geo,fill,line,angle){
-  const m=new THREE.Mesh(geo,FILL[fill]); m.renderOrder=fill==='glass'?2:0; parent.add(m);
+  const m=new THREE.Mesh(geo,FILL[fill]); m.renderOrder=fill==='glass'?2:0; m.userData.pbr=MATTAG||PBRFALL[fill]||'steel'; parent.add(m);
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
 { const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
   const gr=g.createRadialGradient(128,128,0,128,128,128); gr.addColorStop(0,'rgba(208,2,27,.32)'); gr.addColorStop(.55,'rgba(208,2,27,.10)'); gr.addColorStop(1,'rgba(208,2,27,0)');
   g.fillStyle=gr; g.fillRect(0,0,256,256);
-  const tex=new THREE.CanvasTexture(c);
-  const pl=new THREE.Mesh(new THREE.PlaneGeometry(1100,820),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));
-  pl.position.set(270,150,3); pl.renderOrder=-1; root.add(pl); window.__floor=pl; }
+  const tex=new THREE.CanvasTexture(c); tex.encoding=THREE.sRGBEncoding;
+  const pl=new THREE.Mesh(new THREE.PlaneGeometry(1100,820),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,toneMapped:false}));
+  pl.position.set(270,150,3); pl.renderOrder=-1; root.add(pl); window.__floor=pl; pl.userData.floor=true; pl.userData.inkTex=tex; }
 
 const groups={}; ['fixed','bed','susanMid','husPulley','motorPulley','carroZ','ejeX','piston','nut','extMot','resorte','embolo','housing','extStruct','motorSup'].forEach(k=>groups[k]=new THREE.Group());
 const C={x:285,y:160}, HUS={x:120,y:218}, MOT={x:202.5,y:189};
@@ -275,7 +354,8 @@ function bendSpring(dx){
   pts.push(new THREE.Vector3(xb+1.5,SPR_Y,SPR_Z+3),new THREE.Vector3(HOLE_Z-.5,174,SPR_Z+.5),new THREE.Vector3(HOLE_Z,171.5,SPR_Z),new THREE.Vector3(HOLE_Z,167.5,SPR_Z));
   const g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),pts.length*3,.8,8,false);
   if(springMesh){groups.resorte.remove(springMesh,springOut);springMesh.geometry.dispose();}
-  springMesh=new THREE.Mesh(g,FILL.main); springOut=new THREE.Mesh(g,OUTLINE);
+  springMesh=new THREE.Mesh(g,FILL.main); springMesh.userData.pbr='spring'; springOut=new THREE.Mesh(g,OUTLINE);
+  if(pbrMode&&PBR) springMesh.material=PBR.spring;
   groups.resorte.add(springMesh,springOut);
 }
 const sprP=new THREE.Group();  sprP.add(groups.resorte); root.add(sprP);
@@ -291,6 +371,7 @@ const panels=[];
 const [man,buf]=await Promise.all([fetch('maquina.json').then(r=>r.json()),
   fetch('maquina.txt').then(r=>r.text()).then(b=>{const bin=atob(b.trim());const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer;})]);
 for(const m of man){
+  MATTAG=m.mat;
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buf,m.vOff,m.vCount*3),3));
   g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf,m.iOff,m.iCount),1));
@@ -304,9 +385,10 @@ for(const m of man){
   else addDrawn(groups[m.group],g,'main','main',32);
 }
 
+MATTAG=null;
 const TURNS=100, LAYER=2, PLATE_Z=174, WOOD=12, BED_Z=PLATE_Z+WOOD;
 { const g=new THREE.CylinderGeometry(110,110,WOOD,128,1); g.rotateX(Math.PI/2); g.translate(C.x,C.y,PLATE_Z+WOOD/2);
-  addDrawn(groups.bed,g,'main','main',20); }
+  MATTAG='wood'; addDrawn(groups.bed,g,'main','main',20); MATTAG=null; }
 
 const DX0=6, ZTIP=203, WHX=82.5, WHZ=201.5, WHR=12.2, MY=137.5, PROFILE_X=100;
 const zOffOf=h=>BED_Z+h+LAYER-ZTIP;
@@ -317,9 +399,9 @@ const cpos=new Float32Array(NS*4*3), cidx=new Uint32Array((NS-1)*24); let q=0;
 for(let i=0;i<NS-1;i++){for(let k=0;k<4;k++){const a=i*4+k,b=i*4+(k+1)%4,c=a+4,d=b+4;cidx[q++]=a;cidx[q++]=c;cidx[q++]=b;cidx[q++]=b;cidx[q++]=c;cidx[q++]=d;}}
 const cgeo=new THREE.BufferGeometry();
 cgeo.setAttribute('position',new THREE.BufferAttribute(cpos,3)); cgeo.setIndex(new THREE.BufferAttribute(cidx,1));
-const clay=new THREE.Mesh(cgeo,FILL.clay); clay.renderOrder=1; groups.bed.add(clay);
+const clay=new THREE.Mesh(cgeo,FILL.clay); clay.userData.pbr='clay'; clay.renderOrder=1; groups.bed.add(clay);
 const lpos=new Float32Array(NS*3), lgeo=new THREE.BufferGeometry(); lgeo.setAttribute('position',new THREE.BufferAttribute(lpos,3));
-const layerLine=new THREE.Line(lgeo,new THREE.LineBasicMaterial({color:'#7a0013',transparent:true,opacity:.5})); layerLine.renderOrder=3; groups.bed.add(layerLine);
+const layerLine=new THREE.Line(lgeo,new THREE.LineBasicMaterial({color:new THREE.Color('#7a0013').convertSRGBToLinear(),transparent:true,opacity:.5,toneMapped:false})); layerLine.renderOrder=3; groups.bed.add(layerLine);
 let matrixObj=null, ghost=null, L=new Float64Array(NS), P0=-125;
 function buildFromProfile(){
   for(let i=0;i<NS;i++){
@@ -341,6 +423,7 @@ function buildFromProfile(){
   sh.lineTo(14,zTab); sh.closePath();
   const g=new THREE.ShapeGeometry(sh,120); g.rotateX(Math.PI/2); g.translate(0,MY,0);
   addDrawn(matrixObj,g,'matrix','strong',20); groups.fixed.add(matrixObj);
+  if(pbrMode) setMaterials(true);
   // silueta final, punteada
 
 }
@@ -379,11 +462,11 @@ function makeBelt(c1,r1,c2,r2,n,w,pitch,toothH){
   for(let i=0;i<=N;i++){const p=at(Lb*i/N);const A=to3(p.x+p.nx*.9,p.y+p.ny*.9,-w/2),B=to3(p.x+p.nx*.9,p.y+p.ny*.9,w/2);
     pos.push(A.x,A.y,A.z,B.x,B.y,B.z); la.push(A); lb.push(B); if(i<N){const q=i*2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}}
   const bg=new THREE.BufferGeometry(); bg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); bg.setIndex(idx); bg.computeVertexNormals();
-  const bm=new THREE.Mesh(bg,FILL.main); grp.add(bm);
+  const bm=new THREE.Mesh(bg,FILL.main); bm.userData.pbr='belt'; grp.add(bm);
   [la,lb].forEach(arr=>{const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(arr),LINE.main);grp.add(l);});
   // dientes
   const nT=Math.round(Lb/pitch), tg=new THREE.BoxGeometry(pitch*.45,toothH,w);
-  const inst=new THREE.InstancedMesh(tg,solid('#f3b8bf','#d65a68',RED,.05),nT); grp.add(inst);
+  const inst=new THREE.InstancedMesh(tg,solid('#f3b8bf','#d65a68',RED,.05),nT); inst.userData.pbr='belt'; grp.add(inst);
   const m=new THREE.Matrix4(), Q=new THREE.Quaternion(), basis=new THREE.Matrix4();
   function phase(ph){
     for(let k=0;k<nT;k++){const p=at(ph+k*Lb/nT);
@@ -404,7 +487,7 @@ const beltE=makeBelt(EMOT.clone(),8.59,NUT.clone(),17.19,AX,9,3,1.6);
 const axisPt=t=>new THREE.Vector3(499,t/Math.SQRT2-87,t/Math.SQRT2+87);
 const T_FACE=518, T_END=640;   // el tubo termina en t≈648
 const pastaGeo=new THREE.CylinderGeometry(25.6,25.6,1,48,1); pastaGeo.translate(0,.5,0);
-const pasta=new THREE.Mesh(pastaGeo,FILL.clay);
+const pasta=new THREE.Mesh(pastaGeo,FILL.clay); pasta.userData.pbr='clay';
 pasta.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),AX); root.add(pasta);
 function setPasta(sp){const t0=T_FACE+sp; pasta.position.copy(axisPt(t0)); pasta.scale.y=Math.max(.1,T_END-t0);}
 
@@ -419,7 +502,9 @@ function drawHose(dx,dz){
   const a=new THREE.Vector3(499,395.3,569.3), b=new THREE.Vector3(279+dx,160,283+dz);   // cubre las espigas
   const curve=new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
   if(hose){root.remove(hose);hose.geometry.dispose();}
-  hose=new THREE.Mesh(new THREE.TubeGeometry(curve,120,6,16,false),flowMat); root.add(hose);
+  hose=new THREE.Mesh(new THREE.TubeGeometry(curve,120,6,16,false),flowMat); hose.userData.pbr='hose';
+  if(pbrMode&&PBR) hose.material=PBR.hose;
+  root.add(hose);
 }
 $('loading').remove();
 
@@ -492,11 +577,13 @@ if(matchMedia('(prefers-reduced-motion: reduce)').matches){speed=0.5;$('speed').
 OUTLINE.visible=false;
 const rt=new THREE.WebGLRenderTarget(4,4,{depthTexture:(()=>{const t=new THREE.DepthTexture();t.type=THREE.UnsignedIntType;return t;})(),depthBuffer:true});
 const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{tC:{value:rt.texture},tD:{value:rt.depthTexture},px:{value:new THREE.Vector2()},ink:{value:new THREE.Color(RED)},bg:{value:new THREE.Color('#ffffff')}},
+  uniforms:{tC:{value:rt.texture},tD:{value:rt.depthTexture},px:{value:new THREE.Vector2()},ink:{value:new THREE.Color(RED)},bg:{value:new THREE.Color('#ffffff')},mode:{value:0}},
   vertexShader:'varying vec2 vU;void main(){vU=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`uniform sampler2D tC;uniform sampler2D tD;uniform vec2 px;uniform vec3 ink;uniform vec3 bg;varying vec2 vU;
+  fragmentShader:`uniform sampler2D tC;uniform sampler2D tD;uniform vec2 px;uniform vec3 ink;uniform vec3 bg;uniform float mode;varying vec2 vU;
    float L(vec2 u){float z=texture2D(tD,u).x;return 160000./(8000.-z*7980.);}
-   void main(){vec4 c=texture2D(tC,vU);float d=L(vU);
+   void main(){vec4 c=texture2D(tC,vU);
+    if(mode>.5){vec3 B=mix(vec3(.80,.825,.85),vec3(.965,.97,.975),vU.y);gl_FragColor=vec4(c.rgb+(1.-c.a)*B,1.);return;}
+    float d=L(vU);
     float e=0.;for(int i=0;i<4;i++){vec2 o=i==0?vec2(px.x,0.):i==1?vec2(-px.x,0.):i==2?vec2(0.,px.y):vec2(0.,-px.y);
       float n=L(vU+o);e=max(e,abs(n-d)/min(n,d));}
     float k=smoothstep(.02,.06,e)*.55;
@@ -504,9 +591,18 @@ const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial(
     gl_FragColor=vec4(mix(c.rgb+(1.-c.a)*bg,ink,k*.9),1.);}`,
   depthTest:false,depthWrite:false}));
 const postScene=new THREE.Scene(), postCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1); postScene.add(post);
+// resolucion: la escena se dibuja en un render target (hace falta para el contorno por
+// profundidad) y ese target no tiene MSAA. Se renderiza a SS veces el tamano de pantalla y el
+// pase final lo baja: antialias real en aristas, contornos y rosca. El contorno se sigue
+// midiendo en pixeles de pantalla, asi que conserva el mismo peso de trazo que antes.
+const SSMAX=devicePixelRatio>=2?1.5:2;
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
-  const pr=renderer.getPixelRatio();rt.setSize(Math.round(w*pr),Math.round(h*pr));post.material.uniforms.px.value.set(1/(w*pr),1/(h*pr));}
+  const pr=renderer.getPixelRatio();
+  const ss=Math.max(1,Math.min(SSMAX,3600/Math.max(1,w*pr),2400/Math.max(1,h*pr)));
+  rt.setSize(Math.round(w*pr*ss),Math.round(h*pr*ss));
+  post.material.uniforms.px.value.set(1/(w*pr),1/(h*pr));}
 new ResizeObserver(resize).observe(stage); resize();
+document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
 function loop(now){
   const dt=Math.min(.05,(now-lastT)/1000); lastT=now;
   if(playing) t+=dt*speed;
