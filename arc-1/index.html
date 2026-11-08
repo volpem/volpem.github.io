@@ -211,7 +211,8 @@ document.fonts&&document.fonts.ready.then(drawTpl); drawTpl();
 const stage=$('stage');
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);
-renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
+renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 stage.insertBefore(renderer.domElement,stage.firstChild);
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(30,1,20,8000);
@@ -244,76 +245,162 @@ const OUTLINE=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(RED)}
   fragmentShader:'uniform vec3 c;void main(){gl_FragColor=vec4(c,1.);}',side:THREE.BackSide,polygonOffset:true,polygonOffsetFactor:4,polygonOffsetUnits:8});
 // ================= MATERIALES REALES =================
 // Un material por cada "mat" del modelo (ver maquina.json) mas los que se dibujan aparte.
-// Para cambiar el aspecto de una pieza alcanza con editar su fila: c = color, m = metalicidad
-// (0 = plastico o pintura, 1 = metal desnudo), r = rugosidad (0 = espejo, 1 = mate), o = opacidad.
+// Para cambiar el aspecto de una pieza alcanza con editar su fila:
+//   c = color   m = metalicidad (0 pintura o plastico, 1 metal desnudo)
+//   r = rugosidad (0 espejo, 1 mate)   cc = barniz/clearcoat   o = opacidad
+//   n = cuanto varia la rugosidad sobre la pieza (saca el aspecto de plastico perfecto)
 const MATDEF={
-  inox:   {c:'#d7dbdf', m:.95, r:.22},   // chapa de inox
-  steel:  {c:'#9aa0a6', m:.90, r:.38},   // acero, tornilleria, guias
-  alu:    {c:'#c6cace', m:.85, r:.30},   // aluminio mecanizado
-  brass:  {c:'#c9a227', m:1.0, r:.28},   // bronce
-  contour:{c:'#b4b9bf', m:.85, r:.42},   // chapa plegada
-  profile:{c:'#bfc4c9', m:.80, r:.34},   // perfil de aluminio extruido
-  thread: {c:'#a7adb3', m:.90, r:.35},   // varilla roscada
-  print:  {c:'#eceae4', m:.00, r:.55},   // piezas impresas (PLA)
-  white:  {c:'#f0f0ee', m:.00, r:.45},   // plastico blanco
-  dark:   {c:'#23262a', m:.35, r:.55},   // plastico negro
-  motor:  {c:'#2b3034', m:.55, r:.45},   // carcasa de motor
-  button: {c:'#1d2024', m:.10, r:.35},   // pulsadores
-  red:    {c:'#c0121d', m:.15, r:.40},   // piezas rojas
-  belt:   {c:'#1a1c1f', m:.05, r:.65},   // correa de goma
-  spring: {c:'#b9bec4', m:.95, r:.28},   // alambre de resorte
-  wood:   {c:'#c9a979', m:.00, r:.70},   // tabla de la cama
-  carton: {c:'#c8ac82', m:.00, r:.80},   // matriz de carton
-  clay:   {c:'#b4553f', m:.00, r:.85},   // pasta ceramica
-  hose:   {c:'#d8d2c8', m:.00, r:.38},   // manguera de silicona
-  acrylic:{c:'#dde8ec', m:.00, r:.06, o:.22}
+  inox:   {c:'#dde1e5', m:.92, r:.22, n:.05},  // chapa de inox
+  steel:  {c:'#9ba1a7', m:.85, r:.36, n:.09},  // acero, tornilleria, guias
+  alu:    {c:'#c8ccd1', m:.90, r:.30, n:.07},  // aluminio mecanizado
+  brass:  {c:'#c28f31', m:.95, r:.28, n:.07},  // bronce
+  contour:{c:'#b6bcc2', m:.86, r:.40, n:.09},  // chapa plegada
+  profile:{c:'#bfc4ca', m:.88, r:.30, n:.06},  // perfil de aluminio extruido
+  thread: {c:'#a8aeb4', m:.90, r:.33, n:.08},  // varilla roscada
+  spring: {c:'#b4bac1', m:.95, r:.24, n:.05},  // alambre de resorte
+  print:  {c:'#e6e3db', m:0,  r:.62, n:.10, cc:.25},  // piezas impresas (PLA)
+  white:  {c:'#ebe9e5', m:0,  r:.42, cc:.40},  // plastico blanco
+  dark:   {c:'#1d2023', m:0,  r:.46, n:.08, cc:.35},  // plastico negro
+  motor:  {c:'#23272b', m:.2, r:.42, n:.10, cc:.20},  // carcasa de motor
+  button: {c:'#15181b', m:0,  r:.28, cc:.65},  // pulsadores
+  plastic:{c:'#15181b', m:0,  r:.36, cc:.45},  // rueda del seguidor
+  red:    {c:'#b3121c', m:0,  r:.26, cc:.75},  // piezas rojas, pulsador de emergencia
+  belt:   {c:'#131517', m:0,  r:.72, n:.10},   // correa de goma
+  wood:   {c:'#c0a071', m:0,  r:.72, n:.14},   // tabla de la cama
+  carton: {c:'#c2a47b', m:0,  r:.86, n:.16},   // matriz de carton
+  clay:   {c:'#6b3d28', m:0,  r:.90, n:.12},   // gres tostado oscuro
+  hose:   {c:'#d4cec4', m:0,  r:.42, cc:.30},  // manguera de silicona
+  acrylic:{c:'#e2ecf0', m:0,  r:.05, o:.20, cc:1}
 };
 // las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
 const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
-let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null;
+let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
+let WHEELGEO=null, WHEELMESH=null;
+
+// --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
+// Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
 function buildEnv(){
-  // cielo de estudio: un degradado en un canvas equirrectangular, filtrado con PMREM
-  const c=document.createElement('canvas'); c.width=16; c.height=128; const g=c.getContext('2d');
-  const gr=g.createLinearGradient(0,0,0,128);
-  gr.addColorStop(0,'#ffffff'); gr.addColorStop(.46,'#e8edf2'); gr.addColorStop(.54,'#bcc3cb'); gr.addColorStop(1,'#6d727a');
-  g.fillStyle=gr; g.fillRect(0,0,16,128);
-  const t=new THREE.CanvasTexture(c); t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding;
+  const W=512,H=256,cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d');
+  const sky=g.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#f6f9fc'); sky.addColorStop(.40,'#d2d9e0'); sky.addColorStop(.5,'#a8adb3');
+  sky.addColorStop(.54,'#9a9ea2'); sky.addColorStop(1,'#73767a');
+  g.fillStyle=sky; g.fillRect(0,0,W,H);
+  // softboxes: una clave grande, un relleno lateral y una luz de recorte por detras
+  const box=(x,y,r,i)=>{const gr=g.createRadialGradient(x,y,0,x,y,r);
+    gr.addColorStop(0,'rgba(255,255,255,'+i+')'); gr.addColorStop(.45,'rgba(255,255,255,'+(i*.45).toFixed(3)+')');
+    gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2);};
+  box(140,54,86,1); box(372,66,60,.7); box(262,16,120,.55); box(30,96,54,.35);
+  const t=new THREE.CanvasTexture(cv); t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding;
   const pm=new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
   ENV=pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
 }
+
+// --- variacion de rugosidad: ruido en coordenadas de mundo inyectado en el shader estandar.
+// Ninguna pieza real tiene la rugosidad perfectamente pareja, y esa es la mitad del truco.
+function roughNoise(mat,amt){
+  if(!amt) return mat;
+  mat.onBeforeCompile=sh=>{
+    sh.vertexShader='varying vec3 vWP;\n'+sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n  vWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
+    sh.fragmentShader='varying vec3 vWP;\n'
+      +'float h31(vec3 p){p=fract(p*0.3183099+vec3(0.11,0.17,0.13));p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}\n'
+      +'float vn(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);\n'
+      +' return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x),mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),\n'
+      +'            mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x),mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y),f.z);}\n'
+      +sh.fragmentShader.replace('#include <roughnessmap_fragment>',
+        '#include <roughnessmap_fragment>\n  roughnessFactor=clamp(roughnessFactor+(vn(vWP*0.35)-0.5)*'+amt.toFixed(3)
+        +'+(vn(vWP*2.6)-0.5)*'+(amt*0.6).toFixed(3)+',0.03,1.0);');
+  };
+  mat.customProgramCacheKey=()=>'rn'+amt;
+  return mat;
+}
+
 function buildPBR(){
   if(PBR) return PBR;
   buildEnv(); PBR={};
   for(const k in MATDEF){ const d=MATDEF[k], tr=d.o!==undefined;
-    PBR[k]=new THREE.MeshStandardMaterial({color:new THREE.Color(d.c).convertSRGBToLinear(),
-      metalness:d.m,roughness:d.r,envMap:ENV,envMapIntensity:1,side:THREE.DoubleSide,
-      transparent:tr,opacity:tr?d.o:1,depthWrite:!tr}); }
+    const o={color:new THREE.Color(d.c).convertSRGBToLinear(),metalness:d.m,roughness:d.r,
+      envMap:ENV,envMapIntensity:1.35,side:THREE.DoubleSide,
+      transparent:tr,opacity:tr?d.o:1,depthWrite:!tr};
+    if(d.cc){o.clearcoat=d.cc;o.clearcoatRoughness=Math.min(.25,d.r);}
+    PBR[k]=roughNoise(d.cc?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o),d.n); }
+
+  // --- luces: clave con sombra, relleno frio y rebote del suelo
   const g=new THREE.Group();
-  const k1=new THREE.DirectionalLight(0xffffff,1.5); k1.position.set(-420,900,620); g.add(k1);
-  const k2=new THREE.DirectionalLight(0xfff2e6,.45); k2.position.set(760,320,-520); g.add(k2);
-  g.add(new THREE.HemisphereLight(0xe6edf7,0x4b4b4b,.45));
+  const k1=new THREE.DirectionalLight(0xfff6ec,2.1); k1.position.set(-350,1410,600);
+  k1.castShadow=true; k1.shadow.mapSize.set(2048,2048);
+  const sc=k1.shadow.camera; sc.left=-470;sc.right=470;sc.top=470;sc.bottom=-470;sc.near=900;sc.far=2300;
+  sc.updateProjectionMatrix();
+  k1.shadow.bias=-0.0006; k1.shadow.normalBias=1.4; k1.shadow.radius=2;
+  k1.target.position.set(280,300,-165); g.add(k1,k1.target);
+  const k2=new THREE.DirectionalLight(0xdce8ff,.55); k2.position.set(900,420,-700); g.add(k2);
+  const k3=new THREE.DirectionalLight(0xffffff,.25); k3.position.set(180,-600,520); g.add(k3);
+  g.add(new THREE.HemisphereLight(0xe8eef8,0x3c3a37,.55));
   scene.add(g); LIGHTS=g;
+
+  // --- piso real que recibe la sombra, en vez de la mancha dibujada. Se desvanece hacia
+  // los bordes con un alphaMap para que se funda con el fondo y la sombra no quede flotando.
+  {const fc=document.createElement("canvas"); fc.width=fc.height=512; const fg=fc.getContext("2d");
+   const fr=fg.createRadialGradient(256,256,40,256,256,250);
+   fr.addColorStop(0,"#ffffff"); fr.addColorStop(.55,"#bbbbbb"); fr.addColorStop(1,"#000000");
+   fg.fillStyle=fr; fg.fillRect(0,0,512,512);
+   const ft=new THREE.CanvasTexture(fc);
+   shadowPl=new THREE.Mesh(new THREE.PlaneGeometry(1700,1700),new THREE.MeshStandardMaterial(
+     {color:new THREE.Color("#8f949a").convertSRGBToLinear(),roughness:.96,metalness:0,
+      envMap:ENV,envMapIntensity:1.1,alphaMap:ft,transparent:true,depthWrite:false}));
+   shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
+   root.add(shadowPl);}
+
+  splitWheel();
   return PBR;
 }
+
+// La rueda del seguidor es de plastico negro pero viene fundida con el resto del eje X
+// en una sola malla, asi que se parten los triangulos que caen dentro de su cilindro
+// (centro x 82,5 / z 201,5, radio 12,6, entre y 131,5 y 144,5) en un grupo aparte.
+function splitWheel(){
+  const g=WHEELGEO; if(!g||g.userData.split) return; g.userData.split=true;
+  const p=g.attributes.position.array, ix=g.index.array, rest=[], wheel=[];
+  for(let i=0;i<ix.length;i+=3){
+    const a=ix[i]*3,b=ix[i+1]*3,c=ix[i+2]*3;
+    const x=(p[a]+p[b]+p[c])/3, y=(p[a+1]+p[b+1]+p[c+1])/3, z=(p[a+2]+p[b+2]+p[c+2])/3;
+    const t=Math.hypot(x-82.5,z-201.5)<12.6 && y>131.5 && y<144.5;
+    const d=t?wheel:rest; d.push(ix[i],ix[i+1],ix[i+2]);
+  }
+  if(!wheel.length) return;
+  const arr=new Uint32Array(rest.length+wheel.length); arr.set(rest,0); arr.set(wheel,rest.length);
+  g.setIndex(new THREE.BufferAttribute(arr,1));
+  g.clearGroups(); g.addGroup(0,rest.length,0); g.addGroup(rest.length,wheel.length,1);
+  if(WHEELMESH) WHEELMESH.userData.pbr2=['steel','plastic'];
+}
+
 function floorGrey(){
   if(greyTex) return greyTex;
   const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
   const gr=g.createRadialGradient(128,128,0,128,128,128);
-  gr.addColorStop(0,'rgba(24,26,30,.40)'); gr.addColorStop(.55,'rgba(24,26,30,.13)'); gr.addColorStop(1,'rgba(24,26,30,0)');
+  gr.addColorStop(0,'rgba(24,26,30,.22)'); gr.addColorStop(.55,'rgba(24,26,30,.07)'); gr.addColorStop(1,'rgba(24,26,30,0)');
   g.fillStyle=gr; g.fillRect(0,0,256,256);
   greyTex=new THREE.CanvasTexture(c); greyTex.encoding=THREE.sRGBEncoding; return greyTex;
 }
+
 let pbrMode=false;
 function setMaterials(on){
   pbrMode=on; const P=on?buildPBR():null;
   if(LIGHTS) LIGHTS.visible=on;
+  if(shadowPl) shadowPl.visible=on;
   scene.environment=on?ENV:null;
   root.traverse(o=>{
     if(o.isLine||o.isLineSegments||o.isPoints){ o.visible=!on; return; }
     if(!o.isMesh&&!o.isInstancedMesh) return;
+    if(o===shadowPl) return;
+    // las cascaras de contorno (OUTLINE) son solo para la lamina: nunca se les pone material real
+    if(o.material===OUTLINE||o.userData.lamina===OUTLINE){ o.userData.lamina=OUTLINE; return; }
     if(o.userData.floor){ o.material.map=on?floorGrey():o.userData.inkTex; o.material.needsUpdate=true; return; }
     if(!o.userData.lamina) o.userData.lamina=o.material;
-    o.material=on?(P[o.userData.pbr||'steel']||P.steel):o.userData.lamina;
+    if(on){ o.material=o.userData.pbr2?o.userData.pbr2.map(k=>P[k]):(P[o.userData.pbr||'steel']||P.steel);
+      o.castShadow=o.userData.pbr!=='acrylic'; o.receiveShadow=true; }
+    else o.material=o.userData.lamina;
   });
   post.material.uniforms.mode.value=on?1:0;
   document.getElementById('mats').setAttribute('aria-pressed',on?'true':'false');
@@ -321,6 +408,7 @@ function setMaterials(on){
 
 function addDrawn(parent,geo,fill,line,angle){
   const m=new THREE.Mesh(geo,FILL[fill]); m.renderOrder=fill==='glass'?2:0; m.userData.pbr=MATTAG||PBRFALL[fill]||'steel'; parent.add(m);
+  if(geo===WHEELGEO) WHEELMESH=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -376,6 +464,7 @@ for(const m of man){
   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buf,m.vOff,m.vCount*3),3));
   g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf,m.iOff,m.iCount),1));
   g.computeVertexNormals();
+  if(m.group==='ejeX'&&m.mat==='steel'){WHEELGEO=g;}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -577,19 +666,51 @@ if(matchMedia('(prefers-reduced-motion: reduce)').matches){speed=0.5;$('speed').
 OUTLINE.visible=false;
 const rt=new THREE.WebGLRenderTarget(4,4,{depthTexture:(()=>{const t=new THREE.DepthTexture();t.type=THREE.UnsignedIntType;return t;})(),depthBuffer:true});
 const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{tC:{value:rt.texture},tD:{value:rt.depthTexture},px:{value:new THREE.Vector2()},ink:{value:new THREE.Color(RED)},bg:{value:new THREE.Color('#ffffff')},mode:{value:0}},
+  uniforms:{tC:{value:rt.texture},tD:{value:rt.depthTexture},px:{value:new THREE.Vector2()},ink:{value:new THREE.Color(RED)},bg:{value:new THREE.Color('#ffffff')},mode:{value:0},proj:{value:new THREE.Vector2()}},
   vertexShader:'varying vec2 vU;void main(){vU=uv;gl_Position=vec4(position.xy,0.,1.);}',
   fragmentShader:`uniform sampler2D tC;uniform sampler2D tD;uniform vec2 px;uniform vec3 ink;uniform vec3 bg;uniform float mode;varying vec2 vU;
+   uniform vec2 proj;
    float L(vec2 u){float z=texture2D(tD,u).x;return 160000./(8000.-z*7980.);}
+   vec3 VP(vec2 u,float z){return vec3((u*2.-1.)*proj*z,-z);}
+   // oclusion ambiental por profundidad: oscurece rincones y juntas, que es lo que
+   // delata un render sintetico cuando falta. Solo corre en el modo de materiales.
+   float AO(vec2 u,float z){
+     vec3 P=VP(u,z);
+     vec3 N=normalize(cross(dFdx(P),dFdy(P)));
+     if(dot(N,normalize(-P))<0.) N=-N;
+     vec3 T=normalize(abs(N.z)<.9?cross(N,vec3(0.,0.,1.)):cross(N,vec3(1.,0.,0.)));
+     vec3 Bt=cross(N,T);
+     float ang=fract(sin(dot(u,vec2(12.9898,78.233)))*43758.5453)*6.2831853;
+     float occ=0.;
+     const float RAD=16.0;
+     for(int i=0;i<12;i++){
+       float k=(float(i)+.5)/12.;
+       float a=ang+float(i)*2.3999632;
+       float rr=RAD*sqrt(k);
+       vec3 S=P+T*(cos(a)*rr)+Bt*(sin(a)*rr)+N*(rr*.55+.4);
+       vec2 su=(S.xy/(-S.z))/proj*.5+.5;
+       if(su.x<0.||su.x>1.||su.y<0.||su.y>1.) continue;
+       float sz=L(su);
+       float dz=(-S.z)-sz;
+       occ+=step(.35,dz)*smoothstep(0.,1.,RAD/max(abs(z-sz),1e-3));
+     }
+     return clamp(1.-occ/12.*.9,0.,1.);
+   }
    void main(){vec4 c=texture2D(tC,vU);
-    if(mode>.5){vec3 B=mix(vec3(.80,.825,.85),vec3(.965,.97,.975),vU.y);gl_FragColor=vec4(c.rgb+(1.-c.a)*B,1.);return;}
+    if(mode>.5){
+      vec3 B=mix(vec3(.30,.315,.33),vec3(.76,.785,.81),pow(vU.y,.85));
+      vec3 col=c.rgb+(1.-c.a)*B;
+      float z=L(vU);
+      if(z<7000.) col*=AO(vU,z);
+      float vg=smoothstep(1.25,.35,length((vU-.5)*vec2(1.1,1.)));
+      gl_FragColor=vec4(col*mix(.86,1.,vg),1.);return;}
     float d=L(vU);
     float e=0.;for(int i=0;i<4;i++){vec2 o=i==0?vec2(px.x,0.):i==1?vec2(-px.x,0.):i==2?vec2(0.,px.y):vec2(0.,-px.y);
       float n=L(vU+o);e=max(e,abs(n-d)/min(n,d));}
     float k=smoothstep(.02,.06,e)*.55;
     vec3 col=c.a>0.?c.rgb/max(c.a,.0001)*c.a+bg*(1.-c.a):bg;
     gl_FragColor=vec4(mix(c.rgb+(1.-c.a)*bg,ink,k*.9),1.);}`,
-  depthTest:false,depthWrite:false}));
+  depthTest:false,depthWrite:false,extensions:{derivatives:true}}));
 const postScene=new THREE.Scene(), postCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1); postScene.add(post);
 // resolucion: la escena se dibuja en un render target (hace falta para el contorno por
 // profundidad) y ese target no tiene MSAA. Se renderiza a SS veces el tamano de pantalla y el
@@ -600,7 +721,9 @@ function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSiz
   const pr=renderer.getPixelRatio();
   const ss=Math.max(1,Math.min(SSMAX,3600/Math.max(1,w*pr),2400/Math.max(1,h*pr)));
   rt.setSize(Math.round(w*pr*ss),Math.round(h*pr*ss));
-  post.material.uniforms.px.value.set(1/(w*pr),1/(h*pr));}
+  post.material.uniforms.px.value.set(1/(w*pr),1/(h*pr));
+  const th=Math.tan(camera.fov*Math.PI/360);
+  post.material.uniforms.proj.value.set(th*camera.aspect,th);}
 new ResizeObserver(resize).observe(stage); resize();
 document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
 function loop(now){
