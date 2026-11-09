@@ -296,7 +296,7 @@ const MATDEF={
 // las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
 const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
 let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
-let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null;
+let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null, DARKGEO=null, DARKMESH=null;
 
 // --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
 // Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
@@ -373,7 +373,7 @@ function buildPBR(){
    shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
    root.add(shadowPl);}
 
-  splitWheel(); splitTube();
+  splitWheel(); splitTube(); splitAngles();
   return PBR;
 }
 
@@ -382,10 +382,11 @@ function buildPBR(){
 function splitByZone(geo,mesh,keys,zone){
   if(!geo||geo.userData.split) return; geo.userData.split=true;
   const p=geo.attributes.position.array, ix=geo.index.array;
-  const bins=keys.map(()=>[]);
+  const bins=keys.map(()=>[]), v=new Float64Array(9);
   for(let i=0;i<ix.length;i+=3){
     const a=ix[i]*3,b=ix[i+1]*3,c=ix[i+2]*3;
-    const k=zone((p[a]+p[b]+p[c])/3,(p[a+1]+p[b+1]+p[c+1])/3,(p[a+2]+p[b+2]+p[c+2])/3);
+    v[0]=p[a];v[1]=p[a+1];v[2]=p[a+2]; v[3]=p[b];v[4]=p[b+1];v[5]=p[b+2]; v[6]=p[c];v[7]=p[c+1];v[8]=p[c+2];
+    const k=zone((v[0]+v[3]+v[6])/3,(v[1]+v[4]+v[7])/3,(v[2]+v[5]+v[8])/3,v);
     bins[k].push(ix[i],ix[i+1],ix[i+2]);
   }
   if(bins.slice(1).every(b=>!b.length)) return;
@@ -397,13 +398,22 @@ function splitByZone(geo,mesh,keys,zone){
 }
 
 // La rueda del seguidor es de plastico negro, pero viene fundida con el eje X. Es el anillo
-// de radio 7,2 a 12,2 alrededor de x 82,5 / z 201,5: por dentro de ese anillo esta el tornillo
-// que la sostiene, que es de acero y antes se pintaba de negro junto con ella.
+// de radio 7,2 a 12,2 alrededor de x 82,5 / z 201,5, y por dentro queda el tornillo de acero
+// que la sostiene. Se clasifica por el radio MAXIMO de cada triangulo, no por su centro: las
+// caras de la rueda estan tejidas en abanico desde el agujero hasta el borde, asi que medir
+// el centro partia esos triangulos al medio y dejaba un dentado entre la rueda y el tornillo.
 function splitWheel(){
-  splitByZone(WHEELGEO,WHEELMESH,['steel','plastic'],(x,y,z)=>{
-    const r=Math.hypot(x-82.5,z-201.5);
-    return (r>7.05&&r<12.6&&y>124&&y<143.6)?1:0;
+  splitByZone(WHEELGEO,WHEELMESH,['steel','plastic'],(x,y,z,v)=>{
+    let mr=0; for(let i=0;i<9;i+=3) mr=Math.max(mr,Math.hypot(v[i]-82.5,v[i+2]-201.5));
+    return (mr>7.4&&mr<13&&y>123&&y<145)?1:0;
   });
+}
+
+// Los dos perfiles L que sostienen la matriz de carton son de aluminio, pero vienen en la
+// malla de los plasticos negros.
+function splitAngles(){
+  splitByZone(DARKGEO,DARKMESH,['dark','alu'],
+    (x,y,z)=>(x>5&&x<95&&y>105&&y<170&&z>128&&z<172)?1:0);
 }
 
 // El cartucho tambien viene fundido, con las varillas roscadas. Su eje es el del embolo;
@@ -454,6 +464,7 @@ function addDrawn(parent,geo,fill,line,angle){
   const m=new THREE.Mesh(geo,FILL[fill]); m.renderOrder=fill==='glass'?2:0; m.userData.pbr=MATTAG||PBRFALL[fill]||'steel'; parent.add(m);
   if(geo===WHEELGEO) WHEELMESH=m;
   if(geo===TUBEGEO) TUBEMESH=m;
+  if(geo===DARKGEO) DARKMESH=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -511,6 +522,7 @@ for(const m of man){
   g.computeVertexNormals();
   if(m.group==='ejeX'&&m.mat==='steel'){WHEELGEO=g;}
   if(m.group==='fixed'&&m.mat==='thread'){TUBEGEO=g;}
+  if(m.group==='fixed'&&m.mat==='dark'){DARKGEO=g;}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -644,8 +656,8 @@ const flowMat=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(RED)}
 // manguera: dos tubos concentricos. El de afuera es la silicona translucida; el de adentro,
 // la columna de pasta. Los dos se construyen una sola vez y despues solo se les mueven los
 // vertices: rehacer la geometria en cada cuadro costaba mas que dibujarla.
-let hose=null, hoseClay=null, hoseXray=false, hoseFill=0;
-const HTUB=96, HRAD=12;
+let hose=null, hoseClay=null, hoseXray=false, hoseFill=0, clampA=null, clampB=null;
+const HTUB=96, HRAD=12, UPY=new THREE.Vector3(0,1,0);
 const claySkin=new THREE.ShaderMaterial({uniforms:{a:{value:new THREE.Color('#b8745a')},b:{value:new THREE.Color('#5d3222')},l:{value:new THREE.Color(RED)},tm:{value:0}},
   vertexShader:'varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){vU=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
   fragmentShader:'uniform vec3 a;uniform vec3 b;uniform vec3 l;uniform float tm;varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float d=abs(dot(n,normalize(vV)));float dif=clamp(.5+.5*dot(n,normalize(vec3(-.45,.8,.45))),0.,1.);vec3 col=mix(b,a,dif);col*=.9+.1*sin(vU.x*120.-tm*9.);col=mix(l,col,smoothstep(.06,.16,d));gl_FragColor=vec4(col,1.);}',
@@ -658,7 +670,8 @@ function tubePos(curve,tub,rad,rs,arr){
       arr[o]=P.x+rad*(co*N.x+si*B.x); arr[o+1]=P.y+rad*(co*N.y+si*B.y); arr[o+2]=P.z+rad*(co*N.z+si*B.z); } }
 }
 function hoseCurve(dx,dz){
-  const a=new THREE.Vector3(499,395.3,569.3), b=new THREE.Vector3(279+dx,160,283+dz);   // cubre las espigas
+  // las puntas calzan hasta el tope de cada espiga, no apoyadas en la boca
+  const a=new THREE.Vector3(499,401.5,575.5), b=new THREE.Vector3(279+dx,160,275.5+dz);
   return new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
 }
 function setHoseFill(f){ hoseFill=f;
@@ -670,13 +683,22 @@ function drawHose(dx,dz){
     hose.userData.pbr='hosegl'; hose.renderOrder=5; root.add(hose);
     hoseClay=new THREE.Mesh(new THREE.TubeGeometry(curve,HTUB,4.3,HRAD,false),claySkin);
     hoseClay.userData.pbr='clay'; hoseClay.renderOrder=1; root.add(hoseClay);
+    // abrazaderas: la manguera no se sostiene sola sobre la espiga
+    const cg=new THREE.CylinderGeometry(7.1,7.1,4.4,20,1,true);
+    clampA=new THREE.Mesh(cg,FILL.main); clampB=new THREE.Mesh(cg,FILL.main);
+    [clampA,clampB].forEach(m=>{m.userData.pbr='inox';root.add(m);});
     setHoseFill(hoseFill);
   }else{
     tubePos(curve,HTUB,6,HRAD,hose.geometry.attributes.position.array);
     tubePos(curve,HTUB,4.3,HRAD,hoseClay.geometry.attributes.position.array);
     [hose,hoseClay].forEach(m=>{m.geometry.attributes.position.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();});
   }
-  if(pbrMode&&PBR){ hose.material=PBR.hosegl; hoseClay.material=PBR.clay; }
+  [[clampA,.042],[clampB,.958]].forEach(([m,u])=>{
+    m.position.copy(curve.getPointAt(u));
+    m.quaternion.setFromUnitVectors(UPY,curve.getTangentAt(u).normalize());
+  });
+  if(pbrMode&&PBR){ hose.material=PBR.hosegl; hoseClay.material=PBR.clay;
+    clampA.material=clampB.material=PBR.inox; }
 }
 $('loading').remove();
 
@@ -1042,7 +1064,9 @@ async function recordReel(){
   // (probado: con WebCodecs el video igual salia acelerado). Asi que el dibujado se entrega
   // al ritmo del reloj: se dibuja el cuadro y se espera hasta que toque mandarlo. Dibujar
   // cuesta ~13 ms y el cuadro dura 33 ms, asi que sobra tiempo y el reel sale a 30 clavados.
-  const track=out.captureStream(0).getVideoTracks()[0];
+  // El canvas se muestrea solo a 30 fps: requestFrame, que es lo que usabamos para empujar
+  // cada cuadro a mano, existe en Chrome pero no en todos los navegadores.
+  const track=out.captureStream(REEL_FPS).getVideoTracks()[0];
   const rec=new MediaRecorder(new MediaStream([track]),{mimeType:mime,videoBitsPerSecond:16e6});
   const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
   const done=new Promise(r=>{rec.onstop=r;});
@@ -1054,7 +1078,7 @@ async function recordReel(){
       g.fillStyle='#ffffff'; g.fillRect(0,0,REEL_W,REEL_H);
       g.drawImage(renderer.domElement,0,0,REEL_W,REEL_H);   // el buffer se limpia al ceder
       reelOverlay(g,f/frames);
-      track.requestFrame();
+      if(typeof track.requestFrame==='function') track.requestFrame();
       if(!(f%6)) $('reelPct').textContent=Math.round(f/frames*100)+' %';
       const w8=t0+(f+1)*1000/REEL_FPS-performance.now();
       await new Promise(r=>setTimeout(r,Math.max(0,w8)));
@@ -1073,6 +1097,10 @@ async function recordReel(){
   a.href=url; a.download='arc-1-reel-'+Math.round(total)+'s.'+(mime.indexOf('mp4')>=0?'mp4':'webm');
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),20000);
+  if(mime.indexOf('mp4')<0){
+    $('reelPct').textContent='.webm';
+    $('reel').title='Este navegador graba en WEBM; Instagram pide MP4. Para MP4 directo, usá Chrome.';
+  }
 }
 $('reel').onclick=()=>{ if(!recording) recordReel(); };
 
