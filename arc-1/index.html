@@ -1045,14 +1045,75 @@ function reelOverlay(g,prog){
   g.fillStyle='#d0021b'; g.fillRect(0,REEL_H-8,REEL_W*prog,8);
   g.restore();
 }
+// --- el MP4 se arma aca mismo ---
+// Firefox sabe codificar H.264 pero su MediaRecorder solo escribe WEBM, y a Instagram hay
+// que darle MP4. WebCodecs da los cuadros ya comprimidos en H.264 y el contenedor lo arma
+// una libreria de 32 kB que se baja recien cuando se aprieta Grabar. De paso, por este
+// camino cada cuadro lleva su marca de tiempo, asi que no hace falta grabar al ritmo del
+// reloj: el reel de 30 s se dibuja en unos 15, tan rapido como la maquina pueda.
+const MUXER_URL='https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.min.js';
+function loadMuxer(){
+  if(window.Mp4Muxer) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const sc=document.createElement('script'); sc.src=MUXER_URL;
+    sc.onload=()=>window.Mp4Muxer?res():rej(new Error('muxer vacio'));
+    sc.onerror=()=>rej(new Error('no se pudo bajar el muxer'));
+    document.head.appendChild(sc);
+  });
+}
+async function sinkCodecs(){
+  if(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined') return null;
+  const base={width:REEL_W,height:REEL_H,bitrate:14e6,framerate:REEL_FPS};
+  let codec=null;
+  for(const c of ['avc1.640034','avc1.4d0034','avc1.640028','avc1.4d0028','avc1.42e01f']){
+    try{ const r=await VideoEncoder.isConfigSupported(Object.assign({codec:c,avc:{format:'avc'}},base));
+      if(r&&r.supported){ codec=c; break; } }catch(e){}
+  }
+  if(!codec) return null;
+  await loadMuxer();
+  const M=window.Mp4Muxer;
+  const muxer=new M.Muxer({target:new M.ArrayBufferTarget(),
+    video:{codec:'avc',width:REEL_W,height:REEL_H,frameRate:REEL_FPS},fastStart:'in-memory'});
+  let fail=null;
+  const enc=new VideoEncoder({output:(ch,meta)=>{try{muxer.addVideoChunk(ch,meta);}catch(e){fail=e;}},
+                              error:e=>{fail=e;}});
+  enc.configure(Object.assign({codec,avc:{format:'avc'}},base));
+  return { ext:'mp4',
+    async push(cv,f){
+      if(fail) throw fail;
+      const vf=new VideoFrame(cv,{timestamp:Math.round(f*1e6/REEL_FPS),duration:Math.round(1e6/REEL_FPS)});
+      enc.encode(vf,{keyFrame:f%(REEL_FPS*2)===0}); vf.close();
+      while(enc.encodeQueueSize>6&&!fail) await new Promise(r=>setTimeout(r,0));
+    },
+    async finish(){ await enc.flush(); enc.close(); if(fail) throw fail;
+      muxer.finalize(); return new Blob([muxer.target.buffer],{type:'video/mp4'}); } };
+}
+// Respaldo para navegadores sin WebCodecs: MediaRecorder sobre el canvas. Ahi los cuadros se
+// fechan cuando llegan, asi que hay que entregarlos al ritmo del reloj.
+function sinkRecorder(out){
+  const mime=reelMime(); if(!mime) return null;
+  const track=out.captureStream(REEL_FPS).getVideoTracks()[0];
+  const rec=new MediaRecorder(new MediaStream([track]),{mimeType:mime,videoBitsPerSecond:16e6});
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  const done=new Promise(r=>{rec.onstop=r;});
+  rec.start(); const t0=performance.now();
+  return { ext:mime.indexOf('mp4')>=0?'mp4':'webm',
+    async push(cv,f){
+      if(typeof track.requestFrame==='function') track.requestFrame();
+      const w8=t0+(f+1)*1000/REEL_FPS-performance.now();
+      await new Promise(r=>setTimeout(r,Math.max(0,w8)));
+    },
+    async finish(){ await new Promise(r=>setTimeout(r,150));
+      if(rec.state!=='inactive') rec.stop(); await done;
+      return new Blob(chunks,{type:mime}); } };
+}
+
 let recording=false;
 async function recordReel(){
-  const mime=reelMime();
-  if(!mime){ $('reelPct').textContent='sin soporte'; return; }
   // el reel sale a la velocidad que este puesta en el selector: x1 son 60 s, x2 son 30
   const spd=speed>0?speed:1;
   const total=SHOTS.reduce((a,s)=>a+s.dur,0)/spd, frames=Math.round(total*REEL_FPS);
-  recording=true; $('reel').disabled=true; $('tour').disabled=true;
+  recording=true; $('reel').disabled=true; $('tour').disabled=true; $('reelPct').textContent='…';
   const prevPR=renderer.getPixelRatio(), prevSS=ssWant, prevCine=cine, prevPlay=playing;
   playing=false;
   if(!cine) setCine(true);
@@ -1060,17 +1121,16 @@ async function recordReel(){
   const out=document.createElement('canvas'); out.width=REEL_W; out.height=REEL_H;
   out.id='reelView'; stage.appendChild(out);   // se ve lo que se graba, no el canvas estirado
   const g=out.getContext('2d');
-  // MediaRecorder fecha cada cuadro cuando le llega, no con la marca que uno le ponga
-  // (probado: con WebCodecs el video igual salia acelerado). Asi que el dibujado se entrega
-  // al ritmo del reloj: se dibuja el cuadro y se espera hasta que toque mandarlo. Dibujar
-  // cuesta ~13 ms y el cuadro dura 33 ms, asi que sobra tiempo y el reel sale a 30 clavados.
-  // El canvas se muestrea solo a 30 fps: requestFrame, que es lo que usabamos para empujar
-  // cada cuadro a mano, existe en Chrome pero no en todos los navegadores.
-  const track=out.captureStream(REEL_FPS).getVideoTracks()[0];
-  const rec=new MediaRecorder(new MediaStream([track]),{mimeType:mime,videoBitsPerSecond:16e6});
-  const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
-  const done=new Promise(r=>{rec.onstop=r;});
-  rec.start(); const t0=performance.now();
+  let sink=null, blob=null, aviso='';
+  try{ sink=await sinkCodecs(); }catch(e){ sink=null; }
+  if(!sink){ try{ sink=sinkRecorder(out); }catch(e){ sink=null; } }
+  if(!sink){
+    out.remove(); capW=capH=0; renderer.setPixelRatio(prevPR); ssWant=prevSS; resize();
+    recording=false; $('reel').disabled=false; $('tour').disabled=false;
+    $('reelPct').textContent='sin soporte'; playing=prevPlay;
+    if(!prevCine) setCine(false);
+    return;
+  }
   try{
     for(let f=0;f<frames;f++){
       seekTour(f/REEL_FPS*spd);
@@ -1078,28 +1138,30 @@ async function recordReel(){
       g.fillStyle='#ffffff'; g.fillRect(0,0,REEL_W,REEL_H);
       g.drawImage(renderer.domElement,0,0,REEL_W,REEL_H);   // el buffer se limpia al ceder
       reelOverlay(g,f/frames);
-      if(typeof track.requestFrame==='function') track.requestFrame();
+      await sink.push(out,f);
       if(!(f%6)) $('reelPct').textContent=Math.round(f/frames*100)+' %';
-      const w8=t0+(f+1)*1000/REEL_FPS-performance.now();
-      await new Promise(r=>setTimeout(r,Math.max(0,w8)));
+      await new Promise(r=>setTimeout(r,0));
     }
+    blob=await sink.finish();
+  }catch(e){
+    try{ blob=await sink.finish(); }catch(e2){}
+    if(!blob||!blob.size) aviso='falló';
   } finally {
-    await new Promise(r=>setTimeout(r,150));
-    if(rec.state!=='inactive') rec.stop();
-    await done; out.remove();
+    out.remove();
     capW=capH=0; renderer.setPixelRatio(prevPR); ssWant=prevSS; resize();
-    recording=false; $('reel').disabled=false; $('tour').disabled=false; $('reelPct').textContent='';
+    recording=false; $('reel').disabled=false; $('tour').disabled=false;
+    $('reelPct').textContent=aviso;
     playing=prevPlay;
     if(!prevCine) setCine(false); else applyShot(0);
   }
-  const blob=new Blob(chunks,{type:mime});
+  if(!blob||!blob.size) return;
   const a=document.createElement('a'); const url=URL.createObjectURL(blob);
-  a.href=url; a.download='arc-1-reel-'+Math.round(total)+'s.'+(mime.indexOf('mp4')>=0?'mp4':'webm');
+  a.href=url; a.download='arc-1-reel-'+Math.round(total)+'s.'+sink.ext;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),20000);
-  if(mime.indexOf('mp4')<0){
+  if(sink.ext!=='mp4'){
     $('reelPct').textContent='.webm';
-    $('reel').title='Este navegador graba en WEBM; Instagram pide MP4. Para MP4 directo, usá Chrome.';
+    $('reel').title='Este navegador no pudo hacer MP4 y grabó en WEBM; Instagram pide MP4.';
   }
 }
 $('reel').onclick=()=>{ if(!recording) recordReel(); };
