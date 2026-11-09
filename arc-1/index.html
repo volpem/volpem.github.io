@@ -21,6 +21,16 @@ body{background:var(--paper);color:var(--ink);font-family:var(--f);font-size:14p
 #stage{position:relative;min-width:0;background:var(--paper)}
 #stage canvas{display:block;width:100%;height:100%;touch-action:none}
 #loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--grey);font-size:13px;font-weight:500}
+/* rotulo de toma del recorrido guiado */
+#cine{position:absolute;inset:0;pointer-events:none}
+#cineTxt{position:absolute;left:34px;bottom:40px;max-width:min(44ch,62%);transition:opacity .45s ease}
+#cineTxt:before{content:"";position:absolute;left:-14px;top:4px;bottom:4px;width:3px;background:var(--red)}
+#cineTxt b{display:block;font-size:19px;font-weight:700;text-transform:uppercase;letter-spacing:.01em;line-height:1.12}
+#cineTxt span{display:block;margin-top:6px;font-size:12.5px;color:var(--grey);line-height:1.5}
+#cineBar{position:absolute;left:0;right:0;bottom:0;height:4px;display:flex;gap:2px;pointer-events:auto}
+#cineBar i{flex:1 1 auto;background:var(--line);cursor:pointer;position:relative;overflow:hidden}
+#cineBar i:hover{background:#bdbdbd}
+#cineBar i b{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--red);display:block}
 aside{background:var(--sheet);border-left:1px solid var(--ink);overflow-y:auto;
   padding-block:20px 24px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));
   display:flex;flex-direction:column;gap:16px}
@@ -64,7 +74,9 @@ button[aria-pressed="true"].toggle{background:var(--ink);color:var(--paper)}
 <body>
 
 <div class="app">
-  <div id="stage"><div id="loading">Cargando modelo…</div></div>
+  <div id="stage"><div id="loading">Cargando modelo…</div>
+    <div id="cine" hidden><div id="cineTxt"><b id="cineTit"></b><span id="cineSub"></span></div><div id="cineBar"></div></div>
+  </div>
   <aside>
     <div>
       <div class="eyebrow">Grupo 1 · Tecnología 3 · FADU-UBA</div>
@@ -78,6 +90,7 @@ button[aria-pressed="true"].toggle{background:var(--ink);color:var(--paper)}
       </select>
       <button id="restart">Reiniciar</button>
       <button id="mats" class="toggle" aria-pressed="false" title="Cambia el estilo de lamina por los materiales reales">Materiales</button>
+      <button id="tour" class="toggle" aria-pressed="false" title="Secuencia guiada de tomas por la maquina">Recorrido</button>
     </div>
     <div class="phase"><span class="dot"></span><span id="phase">Imprimiendo</span></div>
     <div class="read">
@@ -586,13 +599,13 @@ const flowMat=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(RED)}
   fragmentShader:'uniform vec3 c;uniform float tm;uniform float on;uniform float fill;varying vec2 vU;varying vec3 vN;varying vec3 vV;void main(){float d=abs(dot(normalize(vN),normalize(vV)));vec2 cl=vec2(vU.x*45.-tm*2.5,vU.y*16.);vec2 id=floor(cl);vec2 f=fract(cl)-.5;float h=fract(sin(dot(id,vec2(12.9898,78.233)))*43758.5453);vec2 o=(vec2(fract(h*13.7)*.4,fract(h*7.3)-.5)*.6);vec2 q=(f-o)*vec2(.18+.25*fract(h*5.1),1.);float dot=(1.-smoothstep(.05,.11,length(q)))*step(.35,h)*step(vU.x,fill);vec3 base=mix(vec3(.94,.80,.82),vec3(1.),d);vec3 col=mix(base,vec3(.86,.25,.33),on*.5*dot);col=mix(c,col,smoothstep(.07,.15,d));gl_FragColor=vec4(col,1.);}',
   side:THREE.DoubleSide});
 // manguera
-let hose=null;
+let hose=null, hoseXray=false;
 function drawHose(dx,dz){
   const a=new THREE.Vector3(499,395.3,569.3), b=new THREE.Vector3(279+dx,160,283+dz);   // cubre las espigas
   const curve=new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
   if(hose){root.remove(hose);hose.geometry.dispose();}
   hose=new THREE.Mesh(new THREE.TubeGeometry(curve,120,6,16,false),flowMat); hose.userData.pbr='hose';
-  if(pbrMode&&PBR) hose.material=PBR.hose;
+  if(pbrMode&&PBR&&!hoseXray) hose.material=PBR.hose;
   root.add(hose);
 }
 $('loading').remove();
@@ -611,9 +624,10 @@ function state(tc){
   if(tc<a+T_HOLD) return {ph:'Fin de trabajo',u:1,pre:0,back:0}; a+=T_HOLD;
   return {ph:'Retroceso rápido',u:1,pre:0,back:(tc-a)/T_BACK};
 }
+let lastU=0;
 function update(){
   const s=state(t%CYCLE);
-  const uz=s.back?1-ease(s.back):s.u;
+  const uz=s.back?1-ease(s.back):s.u; lastU=uz;
   const h=uz*TURNS*LAYER, theta=uz*TURNS*2*Math.PI;
   const r=R(h), dx=DX0-r, zOff=zOffOf(h)+s.pre*30;
   bedP.rotation.z=-theta; midP.rotation.z=-theta/2; husP.rotation.z=-theta; motP.rotation.z=-theta*36/20;
@@ -640,7 +654,7 @@ function update(){
   $('rD').textContent='Ø '+Math.round(2*r)+' mm';
   $('rP').textContent=fmt(stroke*(1-reset))+' mm';
 }
-$('apply').onclick=()=>{prof=currentProfile();buildFromProfile();t=0;
+$('apply').onclick=()=>{if(cine)setCine(false,true);prof=currentProfile();buildFromProfile();t=0;
   document.querySelectorAll('#views button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view==='piece'));go('piece');};
 
 // ================= CÁMARA (three: x, z_CAD, -y_CAD) =================
@@ -655,10 +669,10 @@ function go(k,inst){const v=V[k]; follow=(k==='matrix'); lastSpring=null;
 go('piece',true);
 document.querySelectorAll('#views button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('#views button').forEach(x=>x.setAttribute('aria-pressed','false'));
-  b.setAttribute('aria-pressed','true'); go(b.dataset.view);}));
+  b.setAttribute('aria-pressed','true'); if(cine)setCine(false,true); go(b.dataset.view);}));
 $('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'Pausa':'Reproducir';$('play').setAttribute('aria-pressed',playing);};
 $('speed').onchange=e=>speed=+e.target.value;
-$('restart').onclick=()=>{t=0;};
+$('restart').onclick=()=>{if(cine)applyShot(0);else t=0;};
 if(matchMedia('(prefers-reduced-motion: reduce)').matches){speed=0.5;$('speed').value='0.5';}
 
 // contorno de silueta en pantalla: se detecta el salto de profundidad entre píxeles vecinos,
@@ -726,13 +740,131 @@ function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSiz
   post.material.uniforms.proj.value.set(th*camera.aspect,th);}
 new ResizeObserver(resize).observe(stage); resize();
 document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
+
+// ================= RECORRIDO GUIADO =================
+// Una toma declara: cuanto dura en pantalla (dur), que tramo del ciclo de la maquina
+// muestra (m) —asi un mecanismo se puede ver mas lento o mas rapido que en tiempo real—,
+// de donde a donde va la camara, y que piezas se vuelven transparentes para ver adentro.
+// Coordenadas de mundo: x = x del CAD, y = z del CAD (altura), z = -y del CAD.
+const wp=(x,y,z)=>new THREE.Vector3(x,z,-y);
+const hNow=()=>lastU*TURNS*LAYER;
+const pNozzle=()=>wp(C.x-R(hNow()),C.y,BED_Z+hNow()+LAYER);          // el pico, que se corre con el radio
+const pWheel =()=>wp(WHX+DX0-R(hNow()),MY,WHZ+zOffOf(hNow()));       // la rueda del seguidor, que sube con el Z
+
+const SHOTS=[
+ {t:'Posición inicial', d:'El carro Z baja hasta apoyar el pico a dos milímetros de la tabla de madera.',
+  dur:7, m:[0,4.6], fov:[30,30],
+  p:[[-640,820,1080],[-170,560,720]], a:[[280,300,-170],[268,316,-152]]},
+
+ {t:'La pasta llena la manguera', d:'El émbolo empuja el gres desde el cartucho; la pasta recorre la manguera hasta el pico.',
+  dur:8, m:[4.6,7.6], fov:[30,28], flow:true,
+  p:[[1250,760,420],[980,520,520]], a:[[470,470,-300],[390,360,-240]]},
+
+ {t:'Empieza a extruir', d:'Primer cordón sobre la tabla: 2 mm de altura por vuelta, el diámetro lo manda la matriz.',
+  dur:7, m:[7.4,11], fov:[30,26], aim:'nozzle',
+  off:[[-150,170,250],[-62,62,105]]},
+
+ {t:'La cama pivota', d:'Una sola rotación mueve todo: la cama gira y de ahí salen el Z y el avance del émbolo.',
+  dur:8, m:[11,20], fov:[30,30],
+  p:[[-215,770,480],[735,750,540]], a:[[285,250,-160],[285,240,-160]]},
+
+ {t:'Mecanismo del extrusor', d:'Con la carcasa en transparencia se ve la tuerca girando sobre el husillo que empuja el émbolo.',
+  dur:10, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'],
+  p:[[980,580,190],[820,500,140]], a:[[499,330,-200],[499,310,-175]]},
+
+ {t:'Mecanismo del Z', d:'La correa toma el giro de la cama y lo lleva a los husillos: 2 mm de subida por vuelta.',
+  dur:9, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct'],
+  p:[[-150,205,555],[-25,120,405]], a:[[235,185,-185],[235,158,-185]]},
+
+ {t:'Mecanismo del seguidor', d:'El resorte aprieta la rueda contra la matriz de cartón: su perfil se copia al eje X.',
+  dur:10, m:[44,65], fov:[30,27], ghost:['panels'], aim:'wheel',
+  off:[[-140,200,-420],[-45,80,-230]]},
+
+ {t:'La pieza terminada', d:'Cien vueltas, 200 mm de altura. La silueta de la pieza es la de la matriz.',
+  dur:9, m:[65,80], fov:[28,30],
+  p:[[120,470,330],[-300,680,900]], a:[[285,330,-160],[285,320,-168]]}
+];
+
+// --- transparencias: el cuerpo se vuelve vidrio y las aristas quedan dibujadas ---
+const GLAM=glass(.05); let GPBR=null, ghosted=[], ghostHid=[];
+function gmat(){
+  if(!pbrMode) return GLAM;
+  if(!GPBR) GPBR=new THREE.MeshPhysicalMaterial({color:new THREE.Color('#cfd6dc'),metalness:0,roughness:.08,
+    transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide,envMap:ENV,envMapIntensity:1.3});
+  return GPBR;
+}
+function setGhost(keys){
+  ghosted.forEach(o=>{o.material=o.userData.gpre;o.renderOrder=o.userData.gro;o.castShadow=o.userData.gcs;});
+  ghostHid.forEach(o=>o.visible=true); ghosted=[]; ghostHid=[];
+  (keys||[]).forEach(k=>{
+    (k==='panels'?panels:[groups[k]]).forEach(n=>{ if(!n) return; n.visible=true;
+      n.traverse(o=>{
+        if(!o.isMesh&&!o.isInstancedMesh) return;
+        if(o.material===OUTLINE||o.userData.lamina===OUTLINE){o.visible=false;ghostHid.push(o);return;}
+        o.userData.gpre=o.material; o.userData.gro=o.renderOrder; o.userData.gcs=o.castShadow;
+        o.material=gmat(); o.renderOrder=2; o.castShadow=false; ghosted.push(o);
+      });});
+  });
+}
+
+let cine=false, ci=0, cel=0;
+const smooth=k=>k*k*(3-2*k);
+const segs=[];
+{ const bar=$('cineBar');
+  SHOTS.forEach((s,i)=>{const e=document.createElement('i');e.style.flexGrow=s.dur;e.title=s.t;
+    const f=document.createElement('b');e.appendChild(f);segs.push(f);
+    e.onclick=()=>{if(!cine)setCine(true);applyShot(i);};bar.appendChild(e);});}
+
+function shotCam(s,k){
+  const e=smooth(k); let px,py,pz,tx,ty,tz;
+  if(s.aim){ const c=s.aim==='wheel'?pWheel():pNozzle(), o=s.off;
+    tx=c.x; ty=c.y; tz=c.z;
+    px=c.x+o[0][0]+(o[1][0]-o[0][0])*e; py=c.y+o[0][1]+(o[1][1]-o[0][1])*e; pz=c.z+o[0][2]+(o[1][2]-o[0][2])*e;
+  }else{ const P=s.p,A=s.a;
+    px=P[0][0]+(P[1][0]-P[0][0])*e; py=P[0][1]+(P[1][1]-P[0][1])*e; pz=P[0][2]+(P[1][2]-P[0][2])*e;
+    tx=A[0][0]+(A[1][0]-A[0][0])*e; ty=A[0][1]+(A[1][1]-A[0][1])*e; tz=A[0][2]+(A[1][2]-A[0][2])*e; }
+  camera.position.set(px,py,pz); controls.target.set(tx,ty,tz);
+  const f=s.fov?s.fov[0]+(s.fov[1]-s.fov[0])*e:30;
+  if(Math.abs(camera.fov-f)>1e-3){camera.fov=f;camera.updateProjectionMatrix();
+    const th=Math.tan(f*Math.PI/360); post.material.uniforms.proj.value.set(th*camera.aspect,th);}
+}
+function applyShot(i){
+  ci=(i%SHOTS.length+SHOTS.length)%SHOTS.length; cel=0; const s=SHOTS[ci];
+  const gl=s.ghost||[], hd=s.hide||[];
+  setGhost(null);
+  panels.forEach(pn=>pn.visible=!hd.includes('panels'));
+  ['housing','extStruct','motorSup'].forEach(k=>groups[k].visible=!hd.includes(k));
+  setGhost(gl);
+  hoseXray=!!s.flow; t=s.m[0]; update(); shotCam(s,0);
+  $('cineTit').textContent=s.t; $('cineSub').textContent=s.d;
+  const tx=$('cineTxt'); tx.style.opacity=0; requestAnimationFrame(()=>{tx.style.opacity=1;});
+  segs.forEach((b,j)=>b.style.width=j<ci?'100%':'0%');
+}
+function cineStep(dt){
+  const s=SHOTS[ci]; cel+=dt;
+  if(cel>=s.dur){applyShot(ci+1);return;}
+  const k=cel/s.dur; t=s.m[0]+(s.m[1]-s.m[0])*k;
+  segs[ci].style.width=(k*100).toFixed(2)+'%';
+}
+function setCine(on,noView){
+  cine=on; controls.enabled=!on; tween=null; follow=false;
+  $('cine').hidden=!on; $('tour').setAttribute('aria-pressed',on?'true':'false');
+  $('views').style.opacity=on?.45:1;
+  if(on){ if(!playing)$('play').click(); applyShot(0); }
+  else{ setGhost(null); hoseXray=false; camera.fov=30; camera.updateProjectionMatrix(); resize();
+    if(!noView){ document.querySelectorAll('#views button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view==='all'));
+      go('all'); } }
+}
+$('tour').onclick=()=>setCine(!cine);
+
 function loop(now){
   const dt=Math.min(.05,(now-lastT)/1000); lastT=now;
-  if(playing) t+=dt*speed;
+  if(cine){ if(playing) cineStep(dt*speed); } else if(playing) t+=dt*speed;
   update();
-  if(tween){tween.k=Math.min(1,tween.k+dt/1.1);const e=1-Math.pow(1-tween.k,3);
+  if(cine) shotCam(SHOTS[ci],Math.min(1,cel/SHOTS[ci].dur));
+  if(!cine&&tween){tween.k=Math.min(1,tween.k+dt/1.1);const e=1-Math.pow(1-tween.k,3);
     camera.position.lerpVectors(tween.from.p,tween.to.p,e);controls.target.lerpVectors(tween.from.t,tween.to.t,e);if(tween.k>=1)tween=null;}
-  if(follow&&!tween){const c=springCenter();if(lastSpring){const d=c.clone().sub(lastSpring);camera.position.add(d);controls.target.add(d);}lastSpring=c;}
+  if(!cine&&follow&&!tween){const c=springCenter();if(lastSpring){const d=c.clone().sub(lastSpring);camera.position.add(d);controls.target.add(d);}lastSpring=c;}
   controls.update(); renderer.setRenderTarget(rt); renderer.setClearColor(0xffffff,0); renderer.clear(); renderer.render(scene,camera); renderer.setRenderTarget(null); renderer.render(postScene,postCam); requestAnimationFrame(loop);
 }
 update(); requestAnimationFrame(loop);
