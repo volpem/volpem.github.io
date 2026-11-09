@@ -289,13 +289,14 @@ const MATDEF={
   carton: {c:'#c2a47b', m:0,  r:.86, n:.16},   // matriz de carton
   clay:   {c:'#6b3d28', m:0,  r:.90, n:.26},   // gres tostado oscuro
   hosegl: {c:'#eef0ee', m:0,  r:.10, o:.22, cc:1},   // manguera de silicona transparente
+  frost:  {c:'#dfe4e3', m:0,  r:.58, o:.46, n:.10},  // tubo del cartucho, acrilico esmerilado
   hose:   {c:'#d4cec4', m:0,  r:.42, cc:.30},  // manguera de silicona
   acrylic:{c:'#e2ecf0', m:0,  r:.05, o:.20, cc:1}
 };
 // las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
 const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
 let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
-let WHEELGEO=null, WHEELMESH=null;
+let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null;
 
 // --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
 // Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
@@ -372,27 +373,50 @@ function buildPBR(){
    shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
    root.add(shadowPl);}
 
-  splitWheel();
+  splitWheel(); splitTube();
   return PBR;
 }
 
-// La rueda del seguidor es de plastico negro pero viene fundida con el resto del eje X
-// en una sola malla, asi que se parten los triangulos que caen dentro de su cilindro
-// (centro x 82,5 / z 201,5, radio 12,6, entre y 131,5 y 144,5) en un grupo aparte.
-function splitWheel(){
-  const g=WHEELGEO; if(!g||g.userData.split) return; g.userData.split=true;
-  const p=g.attributes.position.array, ix=g.index.array, rest=[], wheel=[];
+// Reparte los triangulos de una malla en varios materiales segun donde caen, para las
+// piezas que el STEP trae fundidas con sus vecinas en un solo cuerpo por material.
+function splitByZone(geo,mesh,keys,zone){
+  if(!geo||geo.userData.split) return; geo.userData.split=true;
+  const p=geo.attributes.position.array, ix=geo.index.array;
+  const bins=keys.map(()=>[]);
   for(let i=0;i<ix.length;i+=3){
     const a=ix[i]*3,b=ix[i+1]*3,c=ix[i+2]*3;
-    const x=(p[a]+p[b]+p[c])/3, y=(p[a+1]+p[b+1]+p[c+1])/3, z=(p[a+2]+p[b+2]+p[c+2])/3;
-    const t=Math.hypot(x-82.5,z-201.5)<12.6 && y>131.5 && y<144.5;
-    const d=t?wheel:rest; d.push(ix[i],ix[i+1],ix[i+2]);
+    const k=zone((p[a]+p[b]+p[c])/3,(p[a+1]+p[b+1]+p[c+1])/3,(p[a+2]+p[b+2]+p[c+2])/3);
+    bins[k].push(ix[i],ix[i+1],ix[i+2]);
   }
-  if(!wheel.length) return;
-  const arr=new Uint32Array(rest.length+wheel.length); arr.set(rest,0); arr.set(wheel,rest.length);
-  g.setIndex(new THREE.BufferAttribute(arr,1));
-  g.clearGroups(); g.addGroup(0,rest.length,0); g.addGroup(rest.length,wheel.length,1);
-  if(WHEELMESH) WHEELMESH.userData.pbr2=['steel','plastic'];
+  if(bins.slice(1).every(b=>!b.length)) return;
+  let n=0; const arr=new Uint32Array(ix.length);
+  geo.clearGroups();
+  bins.forEach((b,i)=>{ if(!b.length) return; arr.set(b,n); geo.addGroup(n,b.length,i); n+=b.length; });
+  geo.setIndex(new THREE.BufferAttribute(arr,1));
+  if(mesh) mesh.userData.pbr2=keys;
+}
+
+// La rueda del seguidor es de plastico negro, pero viene fundida con el eje X. Es el anillo
+// de radio 7,2 a 12,2 alrededor de x 82,5 / z 201,5: por dentro de ese anillo esta el tornillo
+// que la sostiene, que es de acero y antes se pintaba de negro junto con ella.
+function splitWheel(){
+  splitByZone(WHEELGEO,WHEELMESH,['steel','plastic'],(x,y,z)=>{
+    const r=Math.hypot(x-82.5,z-201.5);
+    return (r>7.05&&r<12.6&&y>124&&y<143.6)?1:0;
+  });
+}
+
+// El cartucho tambien viene fundido, con las varillas roscadas. Su eje es el del embolo;
+// el tubo es la pared delgada de radio ~26 y las tapas son los dos macizos de las puntas.
+function splitTube(){
+  const A=[499,-87,87], K=Math.SQRT1_2;
+  splitByZone(TUBEGEO,TUBEMESH,['thread','frost','dark'],(x,y,z)=>{
+    const vx=x-A[0], vy=y-A[1], vz=z-A[2], t=vy*K+vz*K;
+    const r=Math.hypot(vx,vy-t*K,vz-t*K);
+    if(t>415&&t<625&&r>20&&r<33) return 1;                       // tubo
+    if(r<36&&((t>325&&t<382)||(t>620&&t<668))) return 2;         // tapas
+    return 0;
+  });
 }
 
 function floorGrey(){
@@ -429,6 +453,7 @@ function setMaterials(on){
 function addDrawn(parent,geo,fill,line,angle){
   const m=new THREE.Mesh(geo,FILL[fill]); m.renderOrder=fill==='glass'?2:0; m.userData.pbr=MATTAG||PBRFALL[fill]||'steel'; parent.add(m);
   if(geo===WHEELGEO) WHEELMESH=m;
+  if(geo===TUBEGEO) TUBEMESH=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -485,6 +510,7 @@ for(const m of man){
   g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf,m.iOff,m.iCount),1));
   g.computeVertexNormals();
   if(m.group==='ejeX'&&m.mat==='steel'){WHEELGEO=g;}
+  if(m.group==='fixed'&&m.mat==='thread'){TUBEGEO=g;}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -818,35 +844,35 @@ const pWheel =()=>wp(WHX+DX0-R(hNow()),MY,WHZ+zOffOf(hNow()));       // la rueda
 
 const SHOTS=[
  {t:'Posición inicial', d:'El carro Z baja hasta apoyar el pico a dos milímetros de la tabla de madera.',
-  dur:3, m:[0,4.6], fov:[30,30],
+  dur:6, m:[0,4.6], fov:[30,30],
   p:[[-640,820,1080],[-170,560,720]], a:[[280,300,-170],[268,316,-152]]},
 
  {t:'La pasta llena la manguera', d:'El émbolo empuja el gres desde el cartucho; la pasta recorre la manguera hasta el pico.',
-  dur:3.5, m:[4.6,7.6], fov:[30,28], flow:true,
+  dur:7, m:[4.6,7.6], fov:[30,28], flow:true,
   p:[[1250,760,420],[980,520,520]], a:[[470,470,-300],[390,360,-240]]},
 
  {t:'Empieza a extruir', d:'Primer cordón sobre la tabla: 2 mm de altura por vuelta, el diámetro lo manda la matriz.',
-  dur:3.5, m:[7.4,11], fov:[30,26], aim:'nozzle',
+  dur:7, m:[7.4,11], fov:[30,26], aim:'nozzle',
   off:[[-150,170,250],[-62,62,105]]},
 
  {t:'La cama pivota', d:'Una sola rotación mueve todo: la cama gira y de ahí salen el Z y el avance del émbolo.',
-  dur:3.5, m:[11,20], fov:[30,30],
+  dur:7, m:[11,20], fov:[30,30],
   p:[[-215,770,480],[735,750,540]], a:[[285,250,-160],[285,240,-160]]},
 
  {t:'Mecanismo del extrusor', d:'Con la carcasa en transparencia se ve la tuerca girando sobre el husillo que empuja el émbolo.',
-  dur:4.5, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'],
+  dur:9, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'],
   p:[[980,580,190],[820,500,140]], a:[[499,330,-200],[499,310,-175]]},
 
  {t:'Mecanismo del Z', d:'La correa toma el giro de la cama y lo lleva a los husillos: 2 mm de subida por vuelta.',
-  dur:4, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct'],
+  dur:8, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct'],
   p:[[-150,205,555],[-25,120,405]], a:[[235,185,-185],[235,158,-185]]},
 
  {t:'Mecanismo del seguidor', d:'El resorte aprieta la rueda contra la matriz de cartón: su perfil se copia al eje X.',
-  dur:4.5, m:[44,65], fov:[30,27], ghost:['panels'], aim:'wheel',
+  dur:9, m:[44,65], fov:[30,27], ghost:['panels'], aim:'wheel',
   off:[[-140,200,-420],[-45,80,-230]]},
 
  {t:'La pieza terminada', d:'Cien vueltas, 200 mm de altura. La silueta de la pieza es la de la matriz.',
-  dur:3.5, m:[65,80], fov:[28,30],
+  dur:7, m:[65,80], fov:[28,30],
   p:[[120,470,330],[-300,680,900]], a:[[285,330,-160],[285,320,-168]]}
 ];
 
@@ -1001,7 +1027,9 @@ let recording=false;
 async function recordReel(){
   const mime=reelMime();
   if(!mime){ $('reelPct').textContent='sin soporte'; return; }
-  const total=SHOTS.reduce((a,s)=>a+s.dur,0), frames=Math.round(total*REEL_FPS);
+  // el reel sale a la velocidad que este puesta en el selector: x1 son 60 s, x2 son 30
+  const spd=speed>0?speed:1;
+  const total=SHOTS.reduce((a,s)=>a+s.dur,0)/spd, frames=Math.round(total*REEL_FPS);
   recording=true; $('reel').disabled=true; $('tour').disabled=true;
   const prevPR=renderer.getPixelRatio(), prevSS=ssWant, prevCine=cine, prevPlay=playing;
   playing=false;
@@ -1021,7 +1049,7 @@ async function recordReel(){
   rec.start(); const t0=performance.now();
   try{
     for(let f=0;f<frames;f++){
-      seekTour(f/REEL_FPS);
+      seekTour(f/REEL_FPS*spd);
       drawScene();                                  // el dibujado y la copia van juntos:
       g.fillStyle='#ffffff'; g.fillRect(0,0,REEL_W,REEL_H);
       g.drawImage(renderer.domElement,0,0,REEL_W,REEL_H);   // el buffer se limpia al ceder
@@ -1042,7 +1070,7 @@ async function recordReel(){
   }
   const blob=new Blob(chunks,{type:mime});
   const a=document.createElement('a'); const url=URL.createObjectURL(blob);
-  a.href=url; a.download='arc-1-reel.'+(mime.indexOf('mp4')>=0?'mp4':'webm');
+  a.href=url; a.download='arc-1-reel-'+Math.round(total)+'s.'+(mime.indexOf('mp4')>=0?'mp4':'webm');
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),20000);
 }
