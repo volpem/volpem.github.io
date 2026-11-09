@@ -18,8 +18,8 @@
 html,body{height:100%}
 body{background:var(--paper);color:var(--ink);font-family:var(--f);font-size:14px;overflow:hidden}
 .app{display:grid;grid-template-columns:minmax(0,1fr) 340px;height:100%}
-#stage{position:relative;min-width:0;background:var(--paper)}
-#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+#stage{position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--paper)}
+#stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;object-fit:contain}
 #loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--grey);font-size:13px;font-weight:500}
 /* rotulo de toma del recorrido guiado */
 #cine{position:absolute;inset:0;pointer-events:none}
@@ -31,6 +31,8 @@ body{background:var(--paper);color:var(--ink);font-family:var(--f);font-size:14p
 #cineBar i{flex:1 1 auto;background:var(--line);cursor:pointer;position:relative;overflow:hidden}
 #cineBar i:hover{background:#bdbdbd}
 #cineBar i b{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--red);display:block}
+/* mientras graba se ve el cuadro que se esta grabando, con su encuadre vertical real */
+#stage canvas#reelView{z-index:6;background:#fff}
 aside{background:var(--sheet);border-left:1px solid var(--ink);overflow-y:auto;
   padding-block:20px 24px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));
   display:flex;flex-direction:column;gap:16px}
@@ -64,6 +66,8 @@ button[aria-pressed="true"].toggle{background:var(--ink);color:var(--paper)}
 .legend span{display:flex;align-items:center;gap:5px}
 .sw{width:14px;height:8px;display:inline-block}
 #warn{font-size:12px;font-weight:600;color:var(--red);min-height:1.2em}
+#reelPct{font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--red);font-variant-numeric:tabular-nums}
+button:disabled{opacity:.45;cursor:default}
 .foot{color:var(--grey);font-size:11px;line-height:1.5;margin-top:auto}
 @media (max-width:760px){
   .app{grid-template-columns:1fr;grid-template-rows:50% 50%}
@@ -91,6 +95,8 @@ button[aria-pressed="true"].toggle{background:var(--ink);color:var(--paper)}
       <button id="restart">Reiniciar</button>
       <button id="mats" class="toggle" aria-pressed="false" title="Cambia el estilo de lamina por los materiales reales">Materiales</button>
       <button id="tour" class="toggle" aria-pressed="false" title="Secuencia guiada de tomas por la maquina">Recorrido</button>
+      <button id="reel" class="redbtn" title="Graba el recorrido como video vertical 1080x1920, listo para Instagram">Grabar reel</button>
+      <span id="reelPct"></span>
     </div>
     <div class="phase"><span class="dot"></span><span id="phase">Imprimiendo</span></div>
     <div class="read">
@@ -281,7 +287,8 @@ const MATDEF={
   belt:   {c:'#131517', m:0,  r:.72, n:.10},   // correa de goma
   wood:   {c:'#c0a071', m:0,  r:.72, n:.14},   // tabla de la cama
   carton: {c:'#c2a47b', m:0,  r:.86, n:.16},   // matriz de carton
-  clay:   {c:'#6b3d28', m:0,  r:.90, n:.12},   // gres tostado oscuro
+  clay:   {c:'#6b3d28', m:0,  r:.90, n:.26},   // gres tostado oscuro
+  hosegl: {c:'#eef0ee', m:0,  r:.10, o:.22, cc:1},   // manguera de silicona transparente
   hose:   {c:'#d4cec4', m:0,  r:.42, cc:.30},  // manguera de silicona
   acrylic:{c:'#e2ecf0', m:0,  r:.05, o:.20, cc:1}
 };
@@ -497,8 +504,13 @@ const zOffOf=h=>BED_Z+h+LAYER-ZTIP;
 
 // --- piezas que dependen del perfil ---
 const SPT=72, NS=TURNS*SPT+1;
-const cpos=new Float32Array(NS*4*3), cidx=new Uint32Array((NS-1)*24); let q=0;
-for(let i=0;i<NS-1;i++){for(let k=0;k<4;k++){const a=i*4+k,b=i*4+(k+1)%4,c=a+4,d=b+4;cidx[q++]=a;cidx[q++]=c;cidx[q++]=b;cidx[q++]=b;cidx[q++]=c;cidx[q++]=d;}}
+// Seccion del cordon: una elipse, no un rectangulo. La pasta sale redonda del pico y se
+// aplasta contra la capa de abajo, asi que el cordon es mas ancho que alto y entre vuelta
+// y vuelta queda un surco. Es lo que da la textura acanalada de una pieza torneada.
+const CK=12, CRA=3.3, CRB=1.42;   // puntos de la seccion, semieje radial y semieje vertical
+const CSEC=[]; for(let k=0;k<CK;k++){const a=k/CK*2*Math.PI;CSEC.push([Math.cos(a)*CRA,Math.sin(a)*CRB]);}
+const cpos=new Float32Array(NS*CK*3), cidx=new Uint32Array((NS-1)*CK*6); let q=0;
+for(let i=0;i<NS-1;i++){for(let k=0;k<CK;k++){const a=i*CK+k,b=i*CK+(k+1)%CK,c=a+CK,d=b+CK;cidx[q++]=a;cidx[q++]=c;cidx[q++]=b;cidx[q++]=b;cidx[q++]=c;cidx[q++]=d;}}
 const cgeo=new THREE.BufferGeometry();
 cgeo.setAttribute('position',new THREE.BufferAttribute(cpos,3)); cgeo.setIndex(new THREE.BufferAttribute(cidx,1));
 const clay=new THREE.Mesh(cgeo,FILL.clay); clay.userData.pbr='clay'; clay.renderOrder=1; groups.bed.add(clay);
@@ -509,8 +521,12 @@ function buildFromProfile(){
   for(let i=0;i<NS;i++){
     const u=i/(NS-1), th=u*TURNS*2*Math.PI, h=u*TURNS*LAYER, r=R(h);
     const ca=Math.cos(Math.PI+th), sa=Math.sin(Math.PI+th);   // cama en sentido horario
-    [[r-3,h],[r+3,h],[r+3,h+LAYER],[r-3,h+LAYER]].forEach(([rr,zz],k)=>{const o=(i*4+k)*3;cpos[o]=C.x+rr*ca;cpos[o+1]=C.y+rr*sa;cpos[o+2]=BED_Z+zz;});
-    const o=(i*4+2)*3; lpos[i*3]=cpos[o];lpos[i*3+1]=cpos[o+1];lpos[i*3+2]=cpos[o+2];
+    // la pasta nunca sale perfectamente pareja: el cordon late y se corre un poco
+    const w=1+.055*Math.sin(th*6.3+h*.9)+.03*Math.sin(th*19.7+1.7);
+    const cz=BED_Z+h+LAYER*.5+.14*Math.sin(th*11.3+h*.5);
+    for(let k=0;k<CK;k++){const o=(i*CK+k)*3, rr=r+CSEC[k][0]*w;
+      cpos[o]=C.x+rr*ca; cpos[o+1]=C.y+rr*sa; cpos[o+2]=cz+CSEC[k][1]*w;}
+    const o=i*CK*3; lpos[i*3]=cpos[o];lpos[i*3+1]=cpos[o+1];lpos[i*3+2]=cpos[o+2];
     if(i) L[i]=L[i-1]+2*Math.PI*r/SPT;
   }
   P0=40-L[NS-1]*6*2/(Math.PI*52.2*52.2/4);   // el émbolo termina cerca del adaptador
@@ -593,20 +609,48 @@ const pasta=new THREE.Mesh(pastaGeo,FILL.clay); pasta.userData.pbr='clay';
 pasta.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),AX); root.add(pasta);
 function setPasta(sp){const t0=T_FACE+sp; pasta.position.copy(axisPt(t0)); pasta.scale.y=Math.max(.1,T_END-t0);}
 
-// manguera con la pasta circulando
+// La arcilla dentro de la manguera es geometria real: un tubo de pasta mas fino que corre
+// por dentro de la manguera transparente, y que se va destapando a medida que se llena.
 const flowMat=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(RED)},tm:{value:0},on:{value:1},fill:{value:0}},
   vertexShader:'varying vec2 vU;varying vec3 vN;varying vec3 vV;void main(){vU=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
   fragmentShader:'uniform vec3 c;uniform float tm;uniform float on;uniform float fill;varying vec2 vU;varying vec3 vN;varying vec3 vV;void main(){float d=abs(dot(normalize(vN),normalize(vV)));vec2 cl=vec2(vU.x*45.-tm*2.5,vU.y*16.);vec2 id=floor(cl);vec2 f=fract(cl)-.5;float h=fract(sin(dot(id,vec2(12.9898,78.233)))*43758.5453);vec2 o=(vec2(fract(h*13.7)*.4,fract(h*7.3)-.5)*.6);vec2 q=(f-o)*vec2(.18+.25*fract(h*5.1),1.);float dot=(1.-smoothstep(.05,.11,length(q)))*step(.35,h)*step(vU.x,fill);vec3 base=mix(vec3(.94,.80,.82),vec3(1.),d);vec3 col=mix(base,vec3(.86,.25,.33),on*.5*dot);col=mix(c,col,smoothstep(.07,.15,d));gl_FragColor=vec4(col,1.);}',
   side:THREE.DoubleSide});
-// manguera
-let hose=null, hoseXray=false;
-function drawHose(dx,dz){
+// manguera: dos tubos concentricos. El de afuera es la silicona translucida; el de adentro,
+// la columna de pasta. Los dos se construyen una sola vez y despues solo se les mueven los
+// vertices: rehacer la geometria en cada cuadro costaba mas que dibujarla.
+let hose=null, hoseClay=null, hoseXray=false, hoseFill=0;
+const HTUB=96, HRAD=12;
+const claySkin=new THREE.ShaderMaterial({uniforms:{a:{value:new THREE.Color('#b8745a')},b:{value:new THREE.Color('#5d3222')},l:{value:new THREE.Color(RED)},tm:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){vU=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'uniform vec3 a;uniform vec3 b;uniform vec3 l;uniform float tm;varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float d=abs(dot(n,normalize(vV)));float dif=clamp(.5+.5*dot(n,normalize(vec3(-.45,.8,.45))),0.,1.);vec3 col=mix(b,a,dif);col*=.9+.1*sin(vU.x*120.-tm*9.);col=mix(l,col,smoothstep(.06,.16,d));gl_FragColor=vec4(col,1.);}',
+  side:THREE.DoubleSide});
+function tubePos(curve,tub,rad,rs,arr){
+  const fr=curve.computeFrenetFrames(tub,false), P=new THREE.Vector3();
+  for(let i=0;i<=tub;i++){ curve.getPointAt(i/tub,P);
+    const N=fr.normals[i], B=fr.binormals[i];
+    for(let j=0;j<=rs;j++){ const v=j/rs*Math.PI*2, si=Math.sin(v), co=-Math.cos(v), o=(i*(rs+1)+j)*3;
+      arr[o]=P.x+rad*(co*N.x+si*B.x); arr[o+1]=P.y+rad*(co*N.y+si*B.y); arr[o+2]=P.z+rad*(co*N.z+si*B.z); } }
+}
+function hoseCurve(dx,dz){
   const a=new THREE.Vector3(499,395.3,569.3), b=new THREE.Vector3(279+dx,160,283+dz);   // cubre las espigas
-  const curve=new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
-  if(hose){root.remove(hose);hose.geometry.dispose();}
-  hose=new THREE.Mesh(new THREE.TubeGeometry(curve,120,6,16,false),flowMat); hose.userData.pbr='hose';
-  if(pbrMode&&PBR&&!hoseXray) hose.material=PBR.hose;
-  root.add(hose);
+  return new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
+}
+function setHoseFill(f){ hoseFill=f;
+  if(hoseClay) hoseClay.geometry.setDrawRange(0,Math.max(0,Math.round(f*HTUB))*HRAD*6); }
+function drawHose(dx,dz){
+  const curve=hoseCurve(dx,dz);
+  if(!hose){
+    hose=new THREE.Mesh(new THREE.TubeGeometry(curve,HTUB,6,HRAD,false),FILL.glass);
+    hose.userData.pbr='hosegl'; hose.renderOrder=5; root.add(hose);
+    hoseClay=new THREE.Mesh(new THREE.TubeGeometry(curve,HTUB,4.3,HRAD,false),claySkin);
+    hoseClay.userData.pbr='clay'; hoseClay.renderOrder=1; root.add(hoseClay);
+    setHoseFill(hoseFill);
+  }else{
+    tubePos(curve,HTUB,6,HRAD,hose.geometry.attributes.position.array);
+    tubePos(curve,HTUB,4.3,HRAD,hoseClay.geometry.attributes.position.array);
+    [hose,hoseClay].forEach(m=>{m.geometry.attributes.position.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();});
+  }
+  if(pbrMode&&PBR){ hose.material=PBR.hosegl; hoseClay.material=PBR.clay; }
 }
 $('loading').remove();
 
@@ -642,10 +686,9 @@ function update(){
   beltZ1.phase(theta*36/20*6.37); beltZ2.phase(theta*36/20*6.37); beltE.phase(sp*Math.PI*2*8.59);
   setPasta(sp);
   const fl=s.fill!==undefined?s.fill:(s.ph==='Imprimiendo'?1:0);
-  flowMat.uniforms.on.value=fl>0?1:0; flowMat.uniforms.fill.value=fl;
-  if(s.fill!==undefined) flowMat.uniforms.tm.value=s.fill*T_FILL*1.2-T_FILL*1.2;
-  else if(s.ph==='Imprimiendo') flowMat.uniforms.tm.value=s.u*T_PRINT*1.2;
-  cgeo.setDrawRange(0,Math.max(0,n)*24); lgeo.setDrawRange(0,Math.max(0,n));
+  setHoseFill(s.back?1-ease(s.back):fl);
+  claySkin.uniforms.tm.value=s.fill!==undefined?s.fill*T_FILL*1.2:(s.ph==='Imprimiendo'?s.u*T_PRINT*1.2:0);
+  cgeo.setDrawRange(0,Math.max(0,n)*CK*6); lgeo.setDrawRange(0,Math.max(0,n));
   clay.visible=layerLine.visible=!s.back;
   drawHose(dx,zOff);
   $('phase').textContent=s.ph;
@@ -730,14 +773,36 @@ const postScene=new THREE.Scene(), postCam=new THREE.OrthographicCamera(-1,1,1,-
 // profundidad) y ese target no tiene MSAA. Se renderiza a SS veces el tamano de pantalla y el
 // pase final lo baja: antialias real en aristas, contornos y rosca. El contorno se sigue
 // midiendo en pixeles de pantalla, asi que conserva el mismo peso de trazo que antes.
-const SSMAX=devicePixelRatio>=2?1.5:2;
-function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
-  const pr=renderer.getPixelRatio();
-  const ss=Math.max(1,Math.min(SSMAX,3600/Math.max(1,w*pr),2400/Math.max(1,h*pr)));
+// Nitidez contra velocidad. El render target no tiene MSAA, asi que el antialias sale de
+// dibujar a mas resolucion y bajar en el pase final. Cuanto se sobremuestrea lo decide la
+// maquina sola: si los cuadros tardan mas de 20 ms baja, y si quedan clavados en el vsync
+// prueba subir. Asi cada equipo llega a la maxima nitidez que le da el cuero sin bajar de
+// 60 fps, en vez de usar un numero fijo que es demasiado para uno y poco para otro.
+const SSMIN=1, SSMAX=2.2;
+let ssWant=1.5, capW=0, capH=0;
+function applyRT(){
+  const w=Math.max(1,Math.min(4096,capW||stage.clientWidth)), h=Math.max(1,Math.min(4096,capH||stage.clientHeight)), pr=renderer.getPixelRatio();
+  const lim=Math.min(renderer.capabilities.maxTextureSize||4096,5600);
+  const ss=Math.max(SSMIN,Math.min(ssWant,lim/Math.max(1,w*pr),lim/Math.max(1,h*pr)));
   rt.setSize(Math.round(w*pr*ss),Math.round(h*pr*ss));
   post.material.uniforms.px.value.set(1/(w*pr),1/(h*pr));
+}
+function resize(){
+  const w=Math.max(1,Math.min(4096,capW||stage.clientWidth)), h=Math.max(1,Math.min(4096,capH||stage.clientHeight));
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  applyRT();
   const th=Math.tan(camera.fov*Math.PI/360);
-  post.material.uniforms.proj.value.set(th*camera.aspect,th);}
+  post.material.uniforms.proj.value.set(th*camera.aspect,th);
+}
+let msAcc=0,msN=0,probe=0;
+function tuneSS(dt){
+  if(capW) return;                       // grabando manda la calidad, no la velocidad
+  msAcc+=dt*1000; msN++; if(msN<30) return;
+  const ms=msAcc/msN; msAcc=0; msN=0; const was=ssWant;
+  if(ms>20) { ssWant=Math.max(SSMIN,ssWant-.2); probe=0; }
+  else if(ms<17.2 && ++probe>2) { ssWant=Math.min(SSMAX,ssWant+.1); probe=0; }
+  if(Math.abs(ssWant-was)>.01) applyRT();
+}
 new ResizeObserver(resize).observe(stage); resize();
 document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
 
@@ -753,35 +818,35 @@ const pWheel =()=>wp(WHX+DX0-R(hNow()),MY,WHZ+zOffOf(hNow()));       // la rueda
 
 const SHOTS=[
  {t:'Posición inicial', d:'El carro Z baja hasta apoyar el pico a dos milímetros de la tabla de madera.',
-  dur:7, m:[0,4.6], fov:[30,30],
+  dur:3, m:[0,4.6], fov:[30,30],
   p:[[-640,820,1080],[-170,560,720]], a:[[280,300,-170],[268,316,-152]]},
 
  {t:'La pasta llena la manguera', d:'El émbolo empuja el gres desde el cartucho; la pasta recorre la manguera hasta el pico.',
-  dur:8, m:[4.6,7.6], fov:[30,28], flow:true,
+  dur:3.5, m:[4.6,7.6], fov:[30,28], flow:true,
   p:[[1250,760,420],[980,520,520]], a:[[470,470,-300],[390,360,-240]]},
 
  {t:'Empieza a extruir', d:'Primer cordón sobre la tabla: 2 mm de altura por vuelta, el diámetro lo manda la matriz.',
-  dur:7, m:[7.4,11], fov:[30,26], aim:'nozzle',
+  dur:3.5, m:[7.4,11], fov:[30,26], aim:'nozzle',
   off:[[-150,170,250],[-62,62,105]]},
 
  {t:'La cama pivota', d:'Una sola rotación mueve todo: la cama gira y de ahí salen el Z y el avance del émbolo.',
-  dur:8, m:[11,20], fov:[30,30],
+  dur:3.5, m:[11,20], fov:[30,30],
   p:[[-215,770,480],[735,750,540]], a:[[285,250,-160],[285,240,-160]]},
 
  {t:'Mecanismo del extrusor', d:'Con la carcasa en transparencia se ve la tuerca girando sobre el husillo que empuja el émbolo.',
-  dur:10, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'],
+  dur:4.5, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'],
   p:[[980,580,190],[820,500,140]], a:[[499,330,-200],[499,310,-175]]},
 
  {t:'Mecanismo del Z', d:'La correa toma el giro de la cama y lo lleva a los husillos: 2 mm de subida por vuelta.',
-  dur:9, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct'],
+  dur:4, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct'],
   p:[[-150,205,555],[-25,120,405]], a:[[235,185,-185],[235,158,-185]]},
 
  {t:'Mecanismo del seguidor', d:'El resorte aprieta la rueda contra la matriz de cartón: su perfil se copia al eje X.',
-  dur:10, m:[44,65], fov:[30,27], ghost:['panels'], aim:'wheel',
+  dur:4.5, m:[44,65], fov:[30,27], ghost:['panels'], aim:'wheel',
   off:[[-140,200,-420],[-45,80,-230]]},
 
  {t:'La pieza terminada', d:'Cien vueltas, 200 mm de altura. La silueta de la pieza es la de la matriz.',
-  dur:9, m:[65,80], fov:[28,30],
+  dur:3.5, m:[65,80], fov:[28,30],
   p:[[120,470,330],[-300,680,900]], a:[[285,330,-160],[285,320,-168]]}
 ];
 
@@ -815,6 +880,11 @@ const segs=[];
     const f=document.createElement('b');e.appendChild(f);segs.push(f);
     e.onclick=()=>{if(!cine)setCine(true);applyShot(i);};bar.appendChild(e);});}
 
+// En 9:16 el campo horizontal se achica a menos de la mitad. En vez de abrir el lente
+// —que deforma— la camara se corre hacia atras lo mismo que se cerro el encuadre: mismo
+// lente, misma cobertura horizontal, y arriba y abajo entra mas maquina.
+const REFA=1.3;
+const dollyK=()=>{const a=camera.aspect;return a<REFA?Math.min(2.15,REFA/a):1;};
 function shotCam(s,k){
   const e=smooth(k); let px,py,pz,tx,ty,tz;
   if(s.aim){ const c=s.aim==='wheel'?pWheel():pNozzle(), o=s.off;
@@ -823,7 +893,8 @@ function shotCam(s,k){
   }else{ const P=s.p,A=s.a;
     px=P[0][0]+(P[1][0]-P[0][0])*e; py=P[0][1]+(P[1][1]-P[0][1])*e; pz=P[0][2]+(P[1][2]-P[0][2])*e;
     tx=A[0][0]+(A[1][0]-A[0][0])*e; ty=A[0][1]+(A[1][1]-A[0][1])*e; tz=A[0][2]+(A[1][2]-A[0][2])*e; }
-  camera.position.set(px,py,pz); controls.target.set(tx,ty,tz);
+  const dk=dollyK();
+  camera.position.set(tx+(px-tx)*dk,ty+(py-ty)*dk,tz+(pz-tz)*dk); controls.target.set(tx,ty,tz);
   const f=s.fov?s.fov[0]+(s.fov[1]-s.fov[0])*e:30;
   if(Math.abs(camera.fov-f)>1e-3){camera.fov=f;camera.updateProjectionMatrix();
     const th=Math.tan(f*Math.PI/360); post.material.uniforms.proj.value.set(th*camera.aspect,th);}
@@ -839,6 +910,16 @@ function applyShot(i){
   $('cineTit').textContent=s.t; $('cineSub').textContent=s.d;
   const tx=$('cineTxt'); tx.style.opacity=0; requestAnimationFrame(()=>{tx.style.opacity=1;});
   segs.forEach((b,j)=>b.style.width=j<ci?'100%':'0%');
+}
+// Ubica el recorrido en un instante exacto, sin depender de cuanto tardo el cuadro
+// anterior: es lo que deja grabar fuera de tiempo real con el pulso perfecto.
+function seekTour(T){
+  let acc=0,i=0;
+  for(;i<SHOTS.length-1;i++){ if(T<acc+SHOTS[i].dur) break; acc+=SHOTS[i].dur; }
+  const s=SHOTS[i], k=Math.max(0,Math.min(1,(T-acc)/s.dur));
+  if(i!==ci) applyShot(i);
+  cel=T-acc; t=s.m[0]+(s.m[1]-s.m[0])*k; update(); shotCam(s,k);
+  if(segs[i]) segs[i].style.width=(k*100).toFixed(2)+'%';
 }
 function cineStep(dt){
   const s=SHOTS[ci]; cel+=dt;
@@ -857,15 +938,127 @@ function setCine(on,noView){
 }
 $('tour').onclick=()=>setCine(!cine);
 
+function drawScene(){
+  controls.update();
+  renderer.setRenderTarget(rt); renderer.setClearColor(0xffffff,0); renderer.clear();
+  renderer.render(scene,camera);
+  renderer.setRenderTarget(null); renderer.render(postScene,postCam);
+}
+
+// ================= GRABAR EL REEL =================
+// El recorrido se dibuja cuadro a cuadro FUERA de tiempo real a 1080x1920 y se arma el
+// video con MediaRecorder sobre un canvas 2D, donde ademas se tipean los rotulos. Grabar
+// la pantalla daria la resolucion de la pantalla y perderia cuadros cada vez que la
+// maquina se atora; asi el reel sale siempre a 30 cuadros parejos y a full resolucion.
+const REEL_W=1080, REEL_H=1920, REEL_FPS=30;
+function reelMime(){
+  if(!window.MediaRecorder) return '';
+  for(const m of ['video/mp4;codecs=avc1.4d002a','video/mp4;codecs=avc1.42E01E','video/mp4',
+                  'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'])
+    if(MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+function wrapText(g,txt,max){
+  const out=[]; let line='';
+  for(const w of txt.split(' ')){ const tst=line?line+' '+w:w;
+    if(g.measureText(tst).width>max&&line){out.push(line);line=w;} else line=tst; }
+  if(line) out.push(line); return out;
+}
+function reelOverlay(g,prog){
+  const s=SHOTS[ci], M=72;
+  g.save();
+  // velos: el texto tiene que leerse igual contra una pieza clara o contra una sombra
+  let vg=g.createLinearGradient(0,REEL_H-580,0,REEL_H);
+  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(.42,'rgba(255,255,255,.72)');
+  vg.addColorStop(1,'rgba(255,255,255,.97)');
+  g.fillStyle=vg; g.fillRect(0,REEL_H-580,REEL_W,580);
+  vg=g.createLinearGradient(0,0,0,250);
+  vg.addColorStop(0,'rgba(255,255,255,.93)'); vg.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=vg; g.fillRect(0,0,REEL_W,250);
+  // encabezado
+  g.fillStyle='#d0021b'; g.fillRect(M,96,46,5);
+  g.fillStyle='#6b6b6b'; g.font='600 27px Montserrat, Arial, sans-serif';
+  g.fillText('TORNO ADITIVO DE CERÁMICA · GRUPO 1 · FADU-UBA',M,150);
+  // rotulo de la toma
+  g.font='700 66px Montserrat, Arial, sans-serif';
+  const tit=s.t.toUpperCase(), titL=wrapText(g,tit,REEL_W-M*2-26);
+  g.font='500 33px Montserrat, Arial, sans-serif';
+  const subL=wrapText(g,s.d,REEL_W-M*2-26);
+  const bh=titL.length*74+subL.length*46+16;
+  const top=REEL_H-190-bh;
+  g.fillStyle='#d0021b'; g.fillRect(M,top,5,bh);
+  let y=top+58;
+  g.fillStyle='#111111'; g.font='700 66px Montserrat, Arial, sans-serif';
+  for(const l of titL){ g.fillText(l,M+26,y); y+=74; }
+  y+=4; g.fillStyle='#4a4a4a'; g.font='500 33px Montserrat, Arial, sans-serif';
+  for(const l of subL){ g.fillText(l,M+26,y); y+=46; }
+  // barra de avance
+  g.fillStyle='#d2d2d2'; g.fillRect(0,REEL_H-8,REEL_W,8);
+  g.fillStyle='#d0021b'; g.fillRect(0,REEL_H-8,REEL_W*prog,8);
+  g.restore();
+}
+let recording=false;
+async function recordReel(){
+  const mime=reelMime();
+  if(!mime){ $('reelPct').textContent='sin soporte'; return; }
+  const total=SHOTS.reduce((a,s)=>a+s.dur,0), frames=Math.round(total*REEL_FPS);
+  recording=true; $('reel').disabled=true; $('tour').disabled=true;
+  const prevPR=renderer.getPixelRatio(), prevSS=ssWant, prevCine=cine, prevPlay=playing;
+  playing=false;
+  if(!cine) setCine(true);
+  ssWant=SSMAX; renderer.setPixelRatio(1); capW=REEL_W; capH=REEL_H; resize();
+  const out=document.createElement('canvas'); out.width=REEL_W; out.height=REEL_H;
+  out.id='reelView'; stage.appendChild(out);   // se ve lo que se graba, no el canvas estirado
+  const g=out.getContext('2d');
+  // MediaRecorder fecha cada cuadro cuando le llega, no con la marca que uno le ponga
+  // (probado: con WebCodecs el video igual salia acelerado). Asi que el dibujado se entrega
+  // al ritmo del reloj: se dibuja el cuadro y se espera hasta que toque mandarlo. Dibujar
+  // cuesta ~13 ms y el cuadro dura 33 ms, asi que sobra tiempo y el reel sale a 30 clavados.
+  const track=out.captureStream(0).getVideoTracks()[0];
+  const rec=new MediaRecorder(new MediaStream([track]),{mimeType:mime,videoBitsPerSecond:16e6});
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  const done=new Promise(r=>{rec.onstop=r;});
+  rec.start(); const t0=performance.now();
+  try{
+    for(let f=0;f<frames;f++){
+      seekTour(f/REEL_FPS);
+      drawScene();                                  // el dibujado y la copia van juntos:
+      g.fillStyle='#ffffff'; g.fillRect(0,0,REEL_W,REEL_H);
+      g.drawImage(renderer.domElement,0,0,REEL_W,REEL_H);   // el buffer se limpia al ceder
+      reelOverlay(g,f/frames);
+      track.requestFrame();
+      if(!(f%6)) $('reelPct').textContent=Math.round(f/frames*100)+' %';
+      const w8=t0+(f+1)*1000/REEL_FPS-performance.now();
+      await new Promise(r=>setTimeout(r,Math.max(0,w8)));
+    }
+  } finally {
+    await new Promise(r=>setTimeout(r,150));
+    if(rec.state!=='inactive') rec.stop();
+    await done; out.remove();
+    capW=capH=0; renderer.setPixelRatio(prevPR); ssWant=prevSS; resize();
+    recording=false; $('reel').disabled=false; $('tour').disabled=false; $('reelPct').textContent='';
+    playing=prevPlay;
+    if(!prevCine) setCine(false); else applyShot(0);
+  }
+  const blob=new Blob(chunks,{type:mime});
+  const a=document.createElement('a'); const url=URL.createObjectURL(blob);
+  a.href=url; a.download='arc-1-reel.'+(mime.indexOf('mp4')>=0?'mp4':'webm');
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),20000);
+}
+$('reel').onclick=()=>{ if(!recording) recordReel(); };
+
 function loop(now){
   const dt=Math.min(.05,(now-lastT)/1000); lastT=now;
+  if(recording){ requestAnimationFrame(loop); return; }
+  tuneSS(dt);
   if(cine){ if(playing) cineStep(dt*speed); } else if(playing) t+=dt*speed;
   update();
   if(cine) shotCam(SHOTS[ci],Math.min(1,cel/SHOTS[ci].dur));
   if(!cine&&tween){tween.k=Math.min(1,tween.k+dt/1.1);const e=1-Math.pow(1-tween.k,3);
     camera.position.lerpVectors(tween.from.p,tween.to.p,e);controls.target.lerpVectors(tween.from.t,tween.to.t,e);if(tween.k>=1)tween=null;}
   if(!cine&&follow&&!tween){const c=springCenter();if(lastSpring){const d=c.clone().sub(lastSpring);camera.position.add(d);controls.target.add(d);}lastSpring=c;}
-  controls.update(); renderer.setRenderTarget(rt); renderer.setClearColor(0xffffff,0); renderer.clear(); renderer.render(scene,camera); renderer.setRenderTarget(null); renderer.render(postScene,postCam); requestAnimationFrame(loop);
+  drawScene(); requestAnimationFrame(loop);
 }
 update(); requestAnimationFrame(loop);
 })().catch(e=>{const l=document.getElementById('loading');if(l)l.textContent='No se pudo cargar el modelo: '+e.message;});
