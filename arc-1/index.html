@@ -290,8 +290,8 @@ const MATDEF={
   red:    {c:'#b3121c', m:0,  r:.22, cc:.80},  // hongo de emergencia
   belt:   {c:'#131517', m:0,  r:.74, n:.10},   // correas
   // --- motores NEMA 17: tapas anodizadas negras y paquete de chapas al medio
-  motor:  {c:'#1e2124', m:.35, r:.44, n:.08, cc:.18},  // tapas
-  motlam: {c:'#767c82'},  // paquete de chapas: lo pinta nemaBand sobre la carcasa
+  motor:  {c:'#9ca2a8', m:.55, r:.46, n:.09},  // tapas de aluminio fundido
+  motlam: {c:'#17191a'},  // paquete de chapas, negro: lo pinta nemaBand sobre la tapa
   // --- materiales de obra
   wood:   {c:'#c0a071', m:0,  r:.72, n:.13},   // tabla de multilaminado
   carton: {c:'#c2a47b', m:0,  r:.86, n:.15},   // caras de la matriz
@@ -309,6 +309,7 @@ const MATALIAS={frost:'tube',hose:'hosegl',button:'chrome'};
 let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
 let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null, DARKGEO=null, DARKMESH=null;
 let BARBGEO=null, BARBMESH=null, PANELGEO=null, PANELMESH=null;
+let MOT1G=null, MOT1M=null, MOT2G=null, MOT2M=null, FEETG=null, FEETM=null, FEET2G=null, FEET2M=null;
 
 // --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
 // Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
@@ -440,7 +441,8 @@ function buildPBR(){
    shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
    root.add(shadowPl);}
 
-  splitWheel(); splitTube(); splitAngles(); splitBarb(); splitInterlock();
+  splitWheel(); splitTube(); splitAngles(); splitBarb(); splitInterlock(); splitFeet();
+  splitMotorMesh(MOT1G,MOT1M); splitMotorMesh(MOT2G,MOT2M);
   return PBR;
 }
 
@@ -478,15 +480,48 @@ function splitWheel(){
 
 // Caja que exige los TRES vertices adentro. Los paneles vienen tejidos con triangulos que
 // cruzan la chapa entera, asi que mirar solo el centro pintaba media chapa de negro.
-const inBox=(v,b)=>{
+// Los tres vertices adentro NO alcanza: las chapas traen triangulos de hasta 60 mm que
+// entran enteros en una caja de 50x26x65 y se pintan como una cuna. Tambien tiene que ser
+// un triangulo chico, del tamano de los detalles que se quieren pintar.
+const edgeMax=v=>{let m=0;for(let k=0;k<3;k++){const a=k*3,b=((k+1)%3)*3;
+  m=Math.max(m,Math.hypot(v[a]-v[b],v[a+1]-v[b+1],v[a+2]-v[b+2]));}return m;};
+const inBox=(v,b,lim)=>{
+  if(edgeMax(v)>(lim||12)) return false;
   for(let i=0;i<9;i+=3)
     if(v[i]<b.x[0]||v[i]>b.x[1]||v[i+1]<b.y[0]||v[i+1]>b.y[1]||v[i+2]<b.z[0]||v[i+2]>b.z[1]) return false;
   return true;
 };
+// La malla "motor" del STEP no trae solo motores: adentro vienen tornillos y los soportes
+// SHF, que salian negros. Solo es motor lo que cae dentro del cilindro de un motor; el
+// resto vuelve a ser acero. MOTORS esta en coordenadas de mundo, asi que hay que pasarlas.
+function inMotor(x,y,z){
+  const w=[x,z,-y];
+  for(const m of MOTORS){
+    const vx=w[0]-m.p[0], vy=w[1]-m.p[1], vz=w[2]-m.p[2];
+    const t=vx*m.a[0]+vy*m.a[1]+vz*m.a[2];
+    if(Math.abs(t-m.c)>19) continue;
+    if(Math.hypot(vx-t*m.a[0],vy-t*m.a[1],vz-t*m.a[2])<32) return true;
+  }
+  return false;
+}
+function splitMotorMesh(geo,mesh){
+  if(!geo||!mesh) return;
+  splitByZone(geo,mesh,['steel','motor'],(x,y,z)=>inMotor(x,y,z)?1:0);
+  // si en la malla no habia ningun motor, entonces era toda tornilleria y soportes
+  if(!geo.groups.length) mesh.userData.pbr='steel';
+}
+
 // El soporte del interlock, atras a la derecha, es negro; la tecla del interruptor va roja
 // y encendida. Las dos viven en la malla de los paneles.
 const INTERLOCK={x:[305,380], y:[296,332], z:[25,100]};
 const TECLA={x:[328,366], y:[320,336], z:[64,94]};
+// Las 8 patitas: 4 en las esquinas de la base y 4 bajo el bastidor del extrusor.
+const PATAS={x:[-40,620], y:[-60,400], z:[-20,15]};
+function splitFeet(){
+  splitByZone(FEETG,FEETM,['steel','dark'],(x,y,z,v)=>inBox(v,PATAS,22)?1:0);
+  splitByZone(FEET2G,FEET2M,['steel','dark'],(x,y,z,v)=>inBox(v,PATAS,22)?1:0);
+}
+
 function splitInterlock(){
   splitByZone(PANELGEO,PANELMESH,['inox','dark','redled'],(x,y,z,v)=>
     inBox(v,TECLA)?2:(inBox(v,INTERLOCK)?1:0));
@@ -555,10 +590,10 @@ function nemaBand(mat){
           '#include <color_fragment>\n  vec2 nmb=nemaB(vWP);\n'
           +'  diffuseColor.rgb=mix(diffuseColor.rgb,vec3('+f(c.r)+','+f(c.g)+','+f(c.b)+'),nmb.x);')
         .replace('#include <metalnessmap_fragment>',
-          '#include <metalnessmap_fragment>\n  metalnessFactor=mix(metalnessFactor,0.55,nmb.x);')
+          '#include <metalnessmap_fragment>\n  metalnessFactor=mix(metalnessFactor,0.22,nmb.x);')
         .replace('#include <roughnessmap_fragment>',
           '#include <roughnessmap_fragment>\n'
-          +'  roughnessFactor=mix(roughnessFactor,0.52+sin(nmb.y*12.566)*0.13,nmb.x);');
+          +'  roughnessFactor=mix(roughnessFactor,0.58+sin(nmb.y*12.566)*0.10,nmb.x);');
   };
   mat.customProgramCacheKey=()=>'nema';
   return mat;
@@ -609,6 +644,10 @@ function addDrawn(parent,geo,fill,line,angle){
   if(geo===DARKGEO) DARKMESH=m;
   if(geo===BARBGEO) BARBMESH=m;
   if(geo===PANELGEO) PANELMESH=m;
+  if(geo===MOT1G) MOT1M=m;
+  if(geo===MOT2G) MOT2M=m;
+  if(geo===FEETG) FEETM=m;
+  if(geo===FEET2G) FEET2M=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -669,6 +708,10 @@ for(const m of man){
   if(m.group==='fixed'&&m.mat==='dark'){DARKGEO=g;}
   if(m.group==='ejeX'&&m.mat==='thread'){BARBGEO=g;}
   if(m.group==='housing'&&m.mat==='inox'){PANELGEO=g;}
+  if(m.group==='fixed'&&m.mat==='motor'){MOT1G=g;}
+  if(m.group==='housing'&&m.mat==='motor'){MOT2G=g;}
+  if(m.group==='housing'&&m.mat==='steel'){FEETG=g;}
+  if(m.group==='extStruct'&&m.mat==='steel'){FEET2G=g;}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -793,7 +836,9 @@ const beltE=makeBelt(EMOT.clone(),8.59,NUT.clone(),17.19,AX,9,3,1.6,1.0);
 
 // ---- pasta dentro del cartucho ----
 const axisPt=t=>new THREE.Vector3(499,t/Math.SQRT2-87,t/Math.SQRT2+87);
-const T_FACE=518, T_END=640;   // el tubo termina en t≈648
+// T_END a 618: la tapa arranca en 620 y la cara de arriba de la pasta asomaba por el
+// agujero de la tapa, viendose el gres por los costados de la espiga.
+const T_FACE=518, T_END=618;   // el tubo termina en t≈648
 const pastaGeo=new THREE.CylinderGeometry(25.6,25.6,1,48,1); pastaGeo.translate(0,.5,0);
 const pasta=new THREE.Mesh(pastaGeo,FILL.clay); pasta.userData.pbr='clay';
 pasta.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),AX); root.add(pasta);
@@ -866,11 +911,16 @@ function drawHose(dx,dz){
   if(pbrMode&&PBR){ hose.material=PBR.hosegl; hoseClay.material=PBR.clay;
     clampA.material=clampB.material=PBR.inox; }
 }
-// ---- cable de alimentacion ----
-// Sale del interlock, cae al piso y se va del encuadre desvaneciendose.
+// ---- ficha y cable de alimentacion ----
+// La ficha tapa la boca del interlock: el cable esta enchufado, no puede verse el conector
+// abierto. Van juntos en un grupo para poder esconderlos de una.
+let cableObj=null;
 {
+  cableObj=new THREE.Group();
+  const pg=new THREE.BoxGeometry(27,19,21); pg.translate(343,336.5,50);
+  const pm=new THREE.Mesh(pg,FILL.main); pm.userData.pbr='dark'; cableObj.add(pm);
   const q=new THREE.CubicBezierCurve3(
-    new THREE.Vector3(343,331,52), new THREE.Vector3(343,396,42),
+    new THREE.Vector3(343,344,50), new THREE.Vector3(343,400,42),
     new THREE.Vector3(318,458,10), new THREE.Vector3(196,512,7));
   const cg=new THREE.TubeGeometry(q,64,3.4,10,false);
   const cmat=new THREE.ShaderMaterial({uniforms:{a:{value:new THREE.Color('#ffffff')},b:{value:new THREE.Color(RED)}},
@@ -879,7 +929,7 @@ function drawHose(dx,dz){
     transparent:true,depthWrite:false,side:THREE.DoubleSide});
   const cm=new THREE.Mesh(cg,cmat);
   cm.userData.pbr='cable'; cm.userData.flat=true;   // flat: no tira sombra, se desvanece
-  cm.renderOrder=4; root.add(cm);
+  cm.renderOrder=4; cableObj.add(cm); root.add(cableObj);
 }
 $('loading').remove();
 
@@ -935,7 +985,7 @@ const V={matrix:{p:[30,330,-340],t:[66,272,-177]},bed:{p:[-20,70,420],t:[235,115
 let tween=null, follow=false, lastSpring=null;
 function springCenter(){const dx=sprP.userData.dx||0;return new THREE.Vector3((55+dx+81.4)/2,177,269+groups.carroZ.position.z).applyMatrix4(root.matrixWorld);}
 function go(k,inst){const v=V[k]; follow=(k==='matrix'); lastSpring=null;
-  if(follow){const c=springCenter();v.t=[c.x,c.y,c.z];v.p=[c.x-70,c.y+120,c.z-300];} const mech=(k==='bed'||k==='ext'); panels.forEach(p=>p.visible=!mech); groups.housing.visible=!mech; groups.extStruct.visible=!mech; groups.motorSup.visible=(k!=='bed');const to={p:new THREE.Vector3(...v.p),t:new THREE.Vector3(...v.t)};
+  if(follow){const c=springCenter();v.t=[c.x,c.y,c.z];v.p=[c.x-70,c.y+120,c.z-300];} const mech=(k==='bed'||k==='ext'); panels.forEach(p=>p.visible=!mech); groups.housing.visible=!mech; groups.extStruct.visible=!mech; groups.motorSup.visible=(k!=='bed'); if(cableObj) cableObj.visible=(k!=='bed');const to={p:new THREE.Vector3(...v.p),t:new THREE.Vector3(...v.t)};
   if(inst){camera.position.copy(to.p);controls.target.copy(to.t);return;}
   tween={from:{p:camera.position.clone(),t:controls.target.clone()},to,k:0};}
 go('piece',true);
@@ -1067,7 +1117,7 @@ const SHOTS=[
   p:[[980,580,190],[820,500,140]], a:[[499,330,-200],[499,310,-175]]},
 
  {t:'Mecanismo del Z', d:'La correa toma el giro de la cama y lo lleva a los husillos: 2 mm de subida por vuelta.',
-  dur:8, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct','motorSup'],
+  dur:8, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct','motorSup','cable'],
   p:[[-150,205,555],[-25,120,405]], a:[[235,185,-185],[235,158,-185]]},
 
  {t:'Mecanismo del seguidor', d:'El resorte aprieta la rueda contra la matriz de cartón: su perfil se copia al eje X.',
@@ -1134,6 +1184,7 @@ function applyShot(i){
   setGhost(null);
   panels.forEach(pn=>pn.visible=!hd.includes('panels'));
   ['housing','extStruct','motorSup'].forEach(k=>groups[k].visible=!hd.includes(k));
+  if(cableObj) cableObj.visible=!hd.includes('cable');
   setGhost(gl);
   hoseXray=!!s.flow; setTubeCut(!!s.cut); t=s.m[0]; update(); shotCam(s,0);
   $('cineTit').textContent=s.t; $('cineSub').textContent=s.d;
