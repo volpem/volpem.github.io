@@ -342,7 +342,7 @@ function buildPBR(){
   buildEnv(); PBR={};
   for(const k in MATDEF){ const d=MATDEF[k], tr=d.o!==undefined;
     const o={color:new THREE.Color(d.c).convertSRGBToLinear(),metalness:d.m,roughness:d.r,
-      envMap:ENV,envMapIntensity:1.35,side:THREE.DoubleSide,
+      envMap:ENV,envMapIntensity:1.35,side:THREE.DoubleSide,shadowSide:THREE.BackSide,
       transparent:tr,opacity:tr?d.o:1,depthWrite:!tr};
     if(d.cc){o.clearcoat=d.cc;o.clearcoatRoughness=Math.min(.25,d.r);}
     PBR[k]=roughNoise(d.cc?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o),d.n); }
@@ -351,9 +351,9 @@ function buildPBR(){
   const g=new THREE.Group();
   const k1=new THREE.DirectionalLight(0xfff6ec,2.1); k1.position.set(-350,1410,600);
   k1.castShadow=true; k1.shadow.mapSize.set(2048,2048);
-  const sc=k1.shadow.camera; sc.left=-470;sc.right=470;sc.top=470;sc.bottom=-470;sc.near=900;sc.far=2300;
+  const sc=k1.shadow.camera; sc.left=-400;sc.right=400;sc.top=400;sc.bottom=-400;sc.near=900;sc.far=2300;
   sc.updateProjectionMatrix();
-  k1.shadow.bias=-0.0006; k1.shadow.normalBias=1.4; k1.shadow.radius=2;
+  k1.shadow.bias=-0.00025; k1.shadow.normalBias=0.45; k1.shadow.radius=2;
   k1.target.position.set(280,300,-165); g.add(k1,k1.target);
   const k2=new THREE.DirectionalLight(0xdce8ff,.55); k2.position.set(900,420,-700); g.add(k2);
   const k3=new THREE.DirectionalLight(0xffffff,.25); k3.position.set(180,-600,520); g.add(k3);
@@ -453,7 +453,7 @@ function setMaterials(on){
     if(o.userData.floor){ o.material.map=on?floorGrey():o.userData.inkTex; o.material.needsUpdate=true; return; }
     if(!o.userData.lamina) o.userData.lamina=o.material;
     if(on){ o.material=o.userData.pbr2?o.userData.pbr2.map(k=>P[k]):(P[o.userData.pbr||'steel']||P.steel);
-      o.castShadow=o.userData.pbr!=='acrylic'; o.receiveShadow=true; }
+      o.castShadow=o.userData.pbr!=='acrylic'&&!o.userData.flat; o.receiveShadow=true; }
     else o.material=o.userData.lamina;
   });
   post.material.uniforms.mode.value=on?1:0;
@@ -579,6 +579,7 @@ function buildFromProfile(){
   sh.lineTo(14,zTab); sh.closePath();
   const g=new THREE.ShapeGeometry(sh,120); g.rotateX(Math.PI/2); g.translate(0,MY,0);
   addDrawn(matrixObj,g,'matrix','strong',20); groups.fixed.add(matrixObj);
+  matrixObj.traverse(o=>{if(o.isMesh)o.userData.flat=true;});
   if(pbrMode) setMaterials(true);
   // silueta final, punteada
 
@@ -886,7 +887,7 @@ const SHOTS=[
   p:[[980,580,190],[820,500,140]], a:[[499,330,-200],[499,310,-175]]},
 
  {t:'Mecanismo del Z', d:'La correa toma el giro de la cama y lo lleva a los husillos: 2 mm de subida por vuelta.',
-  dur:8, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct'],
+  dur:8, m:[30,44], fov:[30,28], hide:['panels','housing','extStruct','motorSup'],
   p:[[-150,205,555],[-25,120,405]], a:[[235,185,-185],[235,158,-185]]},
 
  {t:'Mecanismo del seguidor', d:'El resorte aprieta la rueda contra la matriz de cartón: su perfil se copia al eje X.',
