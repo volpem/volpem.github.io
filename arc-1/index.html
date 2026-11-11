@@ -269,34 +269,44 @@ const OUTLINE=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(RED)}
 //   r = rugosidad (0 espejo, 1 mate)   cc = barniz/clearcoat   o = opacidad
 //   n = cuanto varia la rugosidad sobre la pieza (saca el aspecto de plastico perfecto)
 const MATDEF={
-  inox:   {c:'#dde1e5', m:.92, r:.22, n:.05},  // chapa de inox
-  steel:  {c:'#9ba1a7', m:.85, r:.36, n:.09},  // acero, tornilleria, guias
-  alu:    {c:'#c8ccd1', m:.90, r:.30, n:.07},  // aluminio mecanizado
-  brass:  {c:'#c28f31', m:.95, r:.28, n:.07},  // bronce
-  contour:{c:'#b6bcc2', m:.86, r:.40, n:.09},  // chapa plegada
-  profile:{c:'#bfc4ca', m:.88, r:.30, n:.06},  // perfil de aluminio extruido
-  thread: {c:'#a8aeb4', m:.90, r:.33, n:.08},  // varilla roscada
-  spring: {c:'#b4bac1', m:.95, r:.24, n:.05},  // alambre de resorte
-  print:  {c:'#e6e3db', m:0,  r:.62, n:.10, cc:.25},  // piezas impresas (PLA)
-  white:  {c:'#ebe9e5', m:0,  r:.42, cc:.40},  // plastico blanco
-  dark:   {c:'#1d2023', m:0,  r:.46, n:.08, cc:.35},  // plastico negro
-  motor:  {c:'#23272b', m:.2, r:.42, n:.10, cc:.20},  // carcasa de motor
-  button: {c:'#15181b', m:0,  r:.28, cc:.65},  // pulsadores
-  plastic:{c:'#15181b', m:0,  r:.36, cc:.45},  // rueda del seguidor
-  red:    {c:'#b3121c', m:0,  r:.26, cc:.75},  // piezas rojas, pulsador de emergencia
-  belt:   {c:'#131517', m:0,  r:.72, n:.10},   // correa de goma
-  wood:   {c:'#c0a071', m:0,  r:.72, n:.14},   // tabla de la cama
-  carton: {c:'#c2a47b', m:0,  r:.86, n:.16},   // matriz de carton
-  clay:   {c:'#6b3d28', m:0,  r:.90, n:.26},   // gres tostado oscuro
-  hosegl: {c:'#eef0ee', m:0,  r:.10, o:.22, cc:1},   // manguera de silicona transparente
-  frost:  {c:'#dfe4e3', m:0,  r:.58, o:.46, n:.10},  // tubo del cartucho, acrilico esmerilado
-  hose:   {c:'#d4cec4', m:0,  r:.42, cc:.30},  // manguera de silicona
-  acrylic:{c:'#e2ecf0', m:0,  r:.05, o:.20, cc:1}
-};
-// las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
+  // --- inoxidable: mas frio y con cepillado direccional, para que no se confunda con el aluminio
+  inox:   {c:'#d6dadd', m:.93, r:.26, n:.05, bru:.09},  // paneles de la base
+  contour:{c:'#c9cdd1', m:.90, r:.30, n:.06, bru:.10},  // chapas plegadas de base y estructura
+  steel:  {c:'#c3c8cd', m:.90, r:.30, n:.07},  // tornilleria, guias, ejes rectificados y pico
+  // --- aluminio: satinado mas difuso y un punto mas calido
+  profile:{c:'#c4c8cd', m:.86, r:.34, n:.07},  // columna y perfiles extruidos, anodizados
+  alu:    {c:'#c8ccd1', m:.88, r:.32, n:.08},  // perfiles L, poleas, cartucho
+  thread: {c:'#a8aeb4', m:.90, r:.36, n:.08},  // varillas roscadas y husillos, cincados
+  spring: {c:'#b4bac1', m:.95, r:.18, n:.04},  // resorte del seguidor
+  brass:  {c:'#c28f31', m:.95, r:.22, n:.06},  // tuerca del husillo y espigas
+  chrome: {c:'#e4e6e8', m:.98, r:.05, n:.02},  // pulsadores cromados
+  // --- impresion 3D: capas de 0,2 mm a la vista
+  print:  {c:'#e6e3db', m:0,  r:.62, n:.08, cc:.22, lay:.20},  // piezas opacas (PLA)
+  acrylic:{c:'#e8eef0', m:0,  r:.26, o:.42, cc:.6, lay:.26},   // antigiro y tapa del extrusor
+  // --- plasticos
+  white:  {c:'#ebe9e5', m:0,  r:.42, cc:.40},  // embolo
+  dark:   {c:'#1d2023', m:0,  r:.46, n:.08, cc:.30},  // soportes y tapas negras
+  plastic:{c:'#15181b', m:0,  r:.34, cc:.55},  // rueda del seguidor
+  red:    {c:'#b3121c', m:0,  r:.22, cc:.80},  // hongo de emergencia
+  belt:   {c:'#131517', m:0,  r:.74, n:.10},   // correas
+  // --- motores NEMA 17: tapas anodizadas negras y paquete de chapas al medio
+  motor:  {c:'#1e2124', m:.35, r:.44, n:.08, cc:.18},  // tapas
+  motlam: {c:'#8d9298'},  // paquete de chapas: lo pinta nemaBand sobre la carcasa
+  // --- materiales de obra
+  wood:   {c:'#c0a071', m:0,  r:.72, n:.13},   // tabla de multilaminado
+  carton: {c:'#c2a47b', m:0,  r:.86, n:.15},   // caras de la matriz
+  corte:  {c:'#b08e62', m:0,  r:.92, n:.22, corr:.5},  // canto corrugado de la matriz
+  clay:   {c:'#7a4e3a', m:0,  r:.55, n:.22, cc:.14},   // gres humedo
+  // --- cartucho y manguera
+  tube:   {c:'#c4c8cd', m:.86, r:.34, n:.07},  // tubo del cartucho
+  tubex:  {c:'#c9cdd1', m:.30, r:.22, o:.26, n:.05},  // el mismo, en corte para el detalle
+  hosegl: {c:'#eef2f2', m:0,  r:.06, o:.17, cc:1, mesh:1}  // PVC cristal con malla
+};// las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
 const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
+const MATALIAS={frost:'tube',hose:'hosegl',button:'chrome'};
 let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
 let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null, DARKGEO=null, DARKMESH=null;
+let BARBGEO=null, BARBMESH=null;
 
 // --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
 // Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
@@ -319,8 +329,18 @@ function buildEnv(){
 
 // --- variacion de rugosidad: ruido en coordenadas de mundo inyectado en el shader estandar.
 // Ninguna pieza real tiene la rugosidad perfectamente pareja, y esa es la mitad del truco.
-function roughNoise(mat,amt){
-  if(!amt) return mat;
+// Detalles de superficie que no son ruido suelto: las lineas de capa de una pieza impresa
+// (horizontales, porque la impresora apila en Z), el cepillado direccional del inoxidable y
+// la onda del corrugado en el canto del carton. Todo en coordenadas de mundo, asi que no
+// hace falta mapear UV en piezas que vienen del STEP sin coordenadas de textura.
+function surface(mat,d){
+  const amt=d.n||0, lay=d.lay||0, bru=d.bru||0, corr=d.corr||0;
+  if(!amt&&!lay&&!bru&&!corr) return mat;
+  const key='sf'+[amt,lay,bru,corr].join('_');
+  const extra=[];
+  if(lay) extra.push('roughnessFactor+=sin(vWP.y*'+(6.2831853/lay).toFixed(4)+')*'+(0.17).toFixed(2)+';');
+  if(bru) extra.push('roughnessFactor+=(vn(vec3(vWP.x*0.6,vWP.y*34.0,vWP.z*0.6))-0.5)*'+bru.toFixed(3)+';');
+  if(corr) extra.push('roughnessFactor+=sin(vWP.y*1.05+vWP.z*1.05)*'+corr.toFixed(3)+';');
   mat.onBeforeCompile=sh=>{
     sh.vertexShader='varying vec3 vWP;\n'+sh.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\n  vWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
@@ -330,10 +350,29 @@ function roughNoise(mat,amt){
       +' return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x),mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),\n'
       +'            mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x),mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y),f.z);}\n'
       +sh.fragmentShader.replace('#include <roughnessmap_fragment>',
-        '#include <roughnessmap_fragment>\n  roughnessFactor=clamp(roughnessFactor+(vn(vWP*0.35)-0.5)*'+amt.toFixed(3)
-        +'+(vn(vWP*2.6)-0.5)*'+(amt*0.6).toFixed(3)+',0.03,1.0);');
+        '#include <roughnessmap_fragment>\n  roughnessFactor+=(vn(vWP*0.35)-0.5)*'+amt.toFixed(3)
+        +'+(vn(vWP*2.6)-0.5)*'+(amt*0.6).toFixed(3)+';\n  '+extra.join('\n  ')
+        +'\n  roughnessFactor=clamp(roughnessFactor,0.03,1.0);');
   };
-  mat.customProgramCacheKey=()=>'rn'+amt;
+  mat.customProgramCacheKey=()=>key;
+  return mat;
+}
+
+// La manguera es PVC cristal con malla de poliester: dos familias de hilos en diagonal que
+// se cruzan. Se dibujan sobre las coordenadas del tubo, que si las tiene.
+function braid(mat){
+  mat.onBeforeCompile=sh=>{
+    sh.vertexShader='varying vec2 vBU;\n'+sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n  vBU=uv;');
+    sh.fragmentShader='varying vec2 vBU;\n'+sh.fragmentShader.replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\n'
+      +'  float h1=abs(sin((vBU.x*150.0+vBU.y*14.0)*3.14159));\n'
+      +'  float h2=abs(sin((vBU.x*150.0-vBU.y*14.0)*3.14159));\n'
+      +'  float mw=max(smoothstep(0.72,0.99,h1),smoothstep(0.72,0.99,h2));\n'
+      +'  gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(0.93,0.94,0.93),mw*0.8);\n'
+      +'  gl_FragColor.a=clamp(gl_FragColor.a+mw*0.62,0.0,1.0);');
+  };
+  mat.customProgramCacheKey=()=>'braid';
   return mat;
 }
 
@@ -341,11 +380,16 @@ function buildPBR(){
   if(PBR) return PBR;
   buildEnv(); PBR={};
   for(const k in MATDEF){ const d=MATDEF[k], tr=d.o!==undefined;
+    if(d.m===undefined){ PBR[k]=null; continue; }   // solo aporta color, no es un material
     const o={color:new THREE.Color(d.c).convertSRGBToLinear(),metalness:d.m,roughness:d.r,
       envMap:ENV,envMapIntensity:1.35,side:THREE.DoubleSide,shadowSide:THREE.BackSide,
       transparent:tr,opacity:tr?d.o:1,depthWrite:!tr};
     if(d.cc){o.clearcoat=d.cc;o.clearcoatRoughness=Math.min(.25,d.r);}
-    PBR[k]=roughNoise(d.cc?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o),d.n); }
+    let mt=surface(d.cc?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o),d);
+    if(d.mesh) mt=braid(mt);
+    if(k==='motor') mt=nemaBand(mt);
+    PBR[k]=mt; }
+  for(const a in MATALIAS) PBR[a]=PBR[MATALIAS[a]];
 
   // --- luces: clave con sombra, relleno frio y rebote del suelo
   const g=new THREE.Group();
@@ -373,7 +417,7 @@ function buildPBR(){
    shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
    root.add(shadowPl);}
 
-  splitWheel(); splitTube(); splitAngles();
+  splitWheel(); splitTube(); splitAngles(); splitBarb();
   return PBR;
 }
 
@@ -417,16 +461,67 @@ function splitAngles(){
 }
 
 // El cartucho tambien viene fundido, con las varillas roscadas. Su eje es el del embolo;
-// el tubo es la pared delgada de radio ~26 y las tapas son los dos macizos de las puntas.
+// el tubo es la pared delgada de radio ~26, las tapas son los macizos de las puntas y
+// arriba de todo esta la espiga donde calza la manguera.
+const TUBEAX=[499,-87,87];
 function splitTube(){
-  const A=[499,-87,87], K=Math.SQRT1_2;
-  splitByZone(TUBEGEO,TUBEMESH,['thread','frost','dark'],(x,y,z)=>{
+  const A=TUBEAX, K=Math.SQRT1_2;
+  splitByZone(TUBEGEO,TUBEMESH,['thread','tube','alu','brass'],(x,y,z)=>{
     const vx=x-A[0], vy=y-A[1], vz=z-A[2], t=vy*K+vz*K;
     const r=Math.hypot(vx,vy-t*K,vz-t*K);
     if(t>415&&t<625&&r>20&&r<33) return 1;                       // tubo
-    if(r<36&&((t>325&&t<382)||(t>620&&t<668))) return 2;         // tapas
+    if(r<36&&((t>325&&t<382)||(t>620&&t<660))) return 2;         // tapas
+    if(r<14&&t>660&&t<706) return 3;                             // espiga
     return 0;
   });
+}
+
+// La espiga del pico vive en la malla de varillas roscadas del eje X.
+function splitBarb(){
+  splitByZone(BARBGEO,BARBMESH,['thread','brass'],
+    (x,y,z)=>(Math.hypot(x-279,y-160)<7&&z>277&&z<296)?1:0);
+}
+
+// Motores NEMA 17: tapas de aluminio anodizado negro y el paquete de chapas al medio.
+// La banda se pinta en el shader en vez de partir la geometria: el cuerpo del motor son
+// dos triangulos por cara, asi que cualquier reparto por triangulo lo corta en diagonal.
+// Posiciones en coordenadas de mundo (x, z_CAD, -y_CAD), que es lo que ve el shader.
+const MOTORS=[
+  {p:[499.1,261.2,-170.7], a:[0,Math.SQRT1_2,-Math.SQRT1_2], c:-66.5, h:11,   r:34},  // extrusor
+  {p:[202.5,0,-189],       a:[0,1,0],                        c:59,    h:10.5, r:34}   // cama
+];
+function nemaBand(mat){
+  const c=new THREE.Color(MATDEF.motlam.c).convertSRGBToLinear();
+  const prev=mat.onBeforeCompile;
+  const f=v=>v.toFixed(5);
+  const calls=MOTORS.map(m=>'b=max(b,nb(w,vec3('+m.p.map(f).join(',')+'),vec3('
+    +m.a.map(f).join(',')+'),'+f(m.c)+','+f(m.h)+','+f(m.r)+'));').join('\n  ');
+  mat.onBeforeCompile=sh=>{
+    if(prev) prev(sh);
+    sh.fragmentShader=
+      'vec2 nb(vec3 w,vec3 p,vec3 a,float c,float h,float rr){\n'
+      +'  vec3 v=w-p; float t=dot(v,a);\n'
+      +'  if(abs(t-c)>h||length(v-t*a)>rr) return vec2(0.0);\n'
+      +'  return vec2(1.0,t);}\n'
+      +'vec2 nemaB(vec3 w){vec2 b=vec2(0.0);\n  '+calls+'\n  return b;}\n'
+      +sh.fragmentShader
+        .replace('#include <color_fragment>',
+          '#include <color_fragment>\n  vec2 nmb=nemaB(vWP);\n'
+          +'  diffuseColor.rgb=mix(diffuseColor.rgb,vec3('+f(c.r)+','+f(c.g)+','+f(c.b)+'),nmb.x);')
+        .replace('#include <metalnessmap_fragment>',
+          '#include <metalnessmap_fragment>\n  metalnessFactor=mix(metalnessFactor,0.8,nmb.x);')
+        .replace('#include <roughnessmap_fragment>',
+          '#include <roughnessmap_fragment>\n  roughnessFactor+=nmb.x*sin(nmb.y*12.566)*0.09;');
+  };
+  mat.customProgramCacheKey=()=>'nema';
+  return mat;
+}
+
+// El tubo del cartucho es opaco, salvo en la toma donde hay que ver la pasta adentro.
+function setTubeCut(on){
+  const u=TUBEMESH&&TUBEMESH.userData.pbr2; if(!u) return;
+  u[1]=on?'tubex':'tube';
+  if(pbrMode&&PBR) TUBEMESH.material=u.map(k=>PBR[k]);
 }
 
 function floorGrey(){
@@ -465,6 +560,7 @@ function addDrawn(parent,geo,fill,line,angle){
   if(geo===WHEELGEO) WHEELMESH=m;
   if(geo===TUBEGEO) TUBEMESH=m;
   if(geo===DARKGEO) DARKMESH=m;
+  if(geo===BARBGEO) BARBMESH=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -523,6 +619,7 @@ for(const m of man){
   if(m.group==='ejeX'&&m.mat==='steel'){WHEELGEO=g;}
   if(m.group==='fixed'&&m.mat==='thread'){TUBEGEO=g;}
   if(m.group==='fixed'&&m.mat==='dark'){DARKGEO=g;}
+  if(m.group==='ejeX'&&m.mat==='thread'){BARBGEO=g;}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -577,9 +674,12 @@ function buildFromProfile(){
   sh.moveTo(14,zMor); sh.lineTo(PROFILE_X-1,zMor); sh.lineTo(PROFILE_X-1,zt);
   for(let z=zt;z>=zTab;z-=1){const h=z-WHZ-zOffOf(0);sh.lineTo(WHX+DX0-R(h)+WHR,z);}
   sh.lineTo(14,zTab); sh.closePath();
-  const g=new THREE.ShapeGeometry(sh,120); g.rotateX(Math.PI/2); g.translate(0,MY,0);
+  // carton corrugado de 4 mm: con espesor real el canto se ve, y ademas deja de
+  // sombrearse a si misma como le pasaba a la lamina de espesor cero
+  const g=new THREE.ExtrudeGeometry(sh,{depth:4,bevelEnabled:false,curveSegments:120});
+  g.rotateX(Math.PI/2); g.translate(0,MY+2,0);
   addDrawn(matrixObj,g,'matrix','strong',20); groups.fixed.add(matrixObj);
-  matrixObj.traverse(o=>{if(o.isMesh)o.userData.flat=true;});
+  matrixObj.traverse(o=>{if(o.isMesh)o.userData.pbr2=['carton','corte'];});
   if(pbrMode) setMaterials(true);
   // silueta final, punteada
 
@@ -883,7 +983,7 @@ const SHOTS=[
   p:[[-215,770,480],[735,750,540]], a:[[285,250,-160],[285,240,-160]]},
 
  {t:'Mecanismo del extrusor', d:'Con la carcasa en transparencia se ve la tuerca girando sobre el husillo que empuja el émbolo.',
-  dur:9, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'],
+  dur:9, m:[20,30], fov:[28,25], ghost:['housing','extStruct','panels'], cut:true,
   p:[[980,580,190],[820,500,140]], a:[[499,330,-200],[499,310,-175]]},
 
  {t:'Mecanismo del Z', d:'La correa toma el giro de la cama y lo lleva a los husillos: 2 mm de subida por vuelta.',
@@ -955,7 +1055,7 @@ function applyShot(i){
   panels.forEach(pn=>pn.visible=!hd.includes('panels'));
   ['housing','extStruct','motorSup'].forEach(k=>groups[k].visible=!hd.includes(k));
   setGhost(gl);
-  hoseXray=!!s.flow; t=s.m[0]; update(); shotCam(s,0);
+  hoseXray=!!s.flow; setTubeCut(!!s.cut); t=s.m[0]; update(); shotCam(s,0);
   $('cineTit').textContent=s.t; $('cineSub').textContent=s.d;
   const tx=$('cineTxt'); tx.style.opacity=0; requestAnimationFrame(()=>{tx.style.opacity=1;});
   segs.forEach((b,j)=>b.style.width=j<ci?'100%':'0%');
@@ -981,7 +1081,7 @@ function setCine(on,noView){
   $('cine').hidden=!on; $('tour').setAttribute('aria-pressed',on?'true':'false');
   $('views').style.opacity=on?.45:1;
   if(on){ if(!playing)$('play').click(); applyShot(0); }
-  else{ setGhost(null); hoseXray=false; camera.fov=30; camera.updateProjectionMatrix(); resize();
+  else{ setGhost(null); hoseXray=false; setTubeCut(false); camera.fov=30; camera.updateProjectionMatrix(); resize();
     if(!noView){ document.querySelectorAll('#views button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view==='all'));
       go('all'); } }
 }
