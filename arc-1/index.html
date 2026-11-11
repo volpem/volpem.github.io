@@ -310,6 +310,7 @@ let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
 let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null, DARKGEO=null, DARKMESH=null;
 let BARBGEO=null, BARBMESH=null, PANELGEO=null, PANELMESH=null;
 let MOT1G=null, MOT1M=null, MOT2G=null, MOT2M=null, FEETG=null, FEETM=null, FEET2G=null, FEET2M=null;
+let REDGEO=null, REDMESH=null, KNOBMESH=null, SUSANMESH=null;
 
 // --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
 // Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
@@ -431,17 +432,17 @@ function buildPBR(){
   // --- piso real que recibe la sombra, en vez de la mancha dibujada. Se desvanece hacia
   // los bordes con un alphaMap para que se funda con el fondo y la sombra no quede flotando.
   {const fc=document.createElement("canvas"); fc.width=fc.height=512; const fg=fc.getContext("2d");
-   const fr=fg.createRadialGradient(256,256,40,256,256,250);
-   fr.addColorStop(0,"#ffffff"); fr.addColorStop(.55,"#bbbbbb"); fr.addColorStop(1,"#000000");
+   const fr=fg.createRadialGradient(256,256,40,256,256,254);
+   fr.addColorStop(0,"#ffffff"); fr.addColorStop(.62,"#cfcfcf"); fr.addColorStop(.86,"#4a4a4a"); fr.addColorStop(1,"#000000");
    fg.fillStyle=fr; fg.fillRect(0,0,512,512);
    const ft=new THREE.CanvasTexture(fc);
-   shadowPl=new THREE.Mesh(new THREE.PlaneGeometry(1700,1700),new THREE.MeshStandardMaterial(
+   shadowPl=new THREE.Mesh(new THREE.PlaneGeometry(2800,2800),new THREE.MeshStandardMaterial(
      {color:new THREE.Color("#8f949a").convertSRGBToLinear(),roughness:.96,metalness:0,
       envMap:ENV,envMapIntensity:1.1,alphaMap:ft,transparent:true,depthWrite:false}));
-   shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
+   shadowPl.position.set(270,150,0.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
    root.add(shadowPl);}
 
-  splitWheel(); splitTube(); splitAngles(); splitBarb(); splitInterlock(); splitFeet();
+  splitWheel(); splitTube(); splitAngles(); splitBarb(); splitInterlock(); splitFeet(); splitSeta();
   splitMotorMesh(MOT1G,MOT1M); splitMotorMesh(MOT2G,MOT2M);
   return PBR;
 }
@@ -515,6 +516,12 @@ function splitMotorMesh(geo,mesh){
 // y encendida. Las dos viven en la malla de los paneles.
 const INTERLOCK={x:[305,380], y:[296,332], z:[25,100]};
 const TECLA={x:[328,366], y:[320,336], z:[64,94]};
+// El hongo de emergencia: la seta es roja pero el cuello roscado que la sujeta al panel es
+// cromado. La seta va de y -36 a -25; de ahi para atras es el cuello.
+function splitSeta(){
+  splitByZone(REDGEO,REDMESH,['red','chrome'],(x,y,z)=>y>-25?1:0);
+}
+
 // Las 8 patitas: 4 en las esquinas de la base y 4 bajo el bastidor del extrusor.
 const PATAS={x:[-40,620], y:[-60,400], z:[-20,15]};
 function splitFeet(){
@@ -555,7 +562,7 @@ function splitTube(){
 // torno al eje del pico. El carro que lo sostiene queda afuera por radio.
 function splitBarb(){
   splitByZone(BARBGEO,BARBMESH,['thread','brass'],
-    (x,y,z)=>(Math.hypot(x-279,y-160)<15&&z>226&&z<298)?1:0);
+    (x,y,z)=>(Math.hypot(x-279,y-160)<15&&z>198&&z<298)?1:0);
 }
 
 // Motores NEMA 17: tapas de aluminio anodizado negro y el paquete de chapas al medio.
@@ -627,7 +634,7 @@ function setMaterials(on){
     if(o===shadowPl) return;
     // las cascaras de contorno (OUTLINE) son solo para la lamina: nunca se les pone material real
     if(o.material===OUTLINE||o.userData.lamina===OUTLINE){ o.userData.lamina=OUTLINE; return; }
-    if(o.userData.floor){ o.material.map=on?floorGrey():o.userData.inkTex; o.material.needsUpdate=true; return; }
+    if(o.userData.floor){ o.visible=!on; return; }   // en PBR manda el plano de sombra
     if(!o.userData.lamina) o.userData.lamina=o.material;
     if(on){ o.material=o.userData.pbr2?o.userData.pbr2.map(k=>P[k]):(P[o.userData.pbr||'steel']||P.steel);
       o.castShadow=o.userData.pbr!=='acrylic'&&!o.userData.flat; o.receiveShadow=true; }
@@ -648,6 +655,7 @@ function addDrawn(parent,geo,fill,line,angle){
   if(geo===MOT2G) MOT2M=m;
   if(geo===FEETG) FEETM=m;
   if(geo===FEET2G) FEET2M=m;
+  if(geo===REDGEO) REDMESH=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -712,6 +720,11 @@ for(const m of man){
   if(m.group==='housing'&&m.mat==='motor'){MOT2G=g;}
   if(m.group==='housing'&&m.mat==='steel'){FEETG=g;}
   if(m.group==='extStruct'&&m.mat==='steel'){FEET2G=g;}
+  if(m.group==='housing'&&m.mat==='red'){REDGEO=g;}
+  // la perilla es la unica pieza de esta malla, y va cromada como los pulsadores
+  if(m.group==='housing'&&m.mat==='dark'){MATTAG='chrome';}
+  // el lazy susan va todo negro; sus tornillos y separadores viven en otras mallas
+  if(m.group==='susanMid'){MATTAG='dark';}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -917,10 +930,16 @@ function drawHose(dx,dz){
 let cableObj=null;
 {
   cableObj=new THREE.Group();
-  const pg=new THREE.BoxGeometry(27,19,21); pg.translate(343,336.5,50);
-  const pm=new THREE.Mesh(pg,FILL.main); pm.userData.pbr='dark'; cableObj.add(pm);
+  // La boca del conector esta centrada en x 336 / z 47: la ficha va ahi, no corrida.
+  // Forma de ficha IEC: el cuerpo que entra en la boca, el reborde contra la chapa y el
+  // manguito donde sale el cable.
+  const PX=336, PZ=47;
+  const body=new THREE.BoxGeometry(26,10,19); body.translate(PX,332,PZ);
+  const rim=new THREE.BoxGeometry(31,7,24); rim.translate(PX,340,PZ);
+  const neck=new THREE.CylinderGeometry(6.5,5.2,13,16); neck.rotateX(Math.PI/2); neck.translate(PX,347,PZ);
+  [body,rim,neck].forEach(gg=>{const mm=new THREE.Mesh(gg,FILL.main);mm.userData.pbr='dark';cableObj.add(mm);});
   const q=new THREE.CubicBezierCurve3(
-    new THREE.Vector3(343,344,50), new THREE.Vector3(343,400,42),
+    new THREE.Vector3(PX,352,PZ), new THREE.Vector3(PX,400,42),
     new THREE.Vector3(318,458,10), new THREE.Vector3(196,512,7));
   const cg=new THREE.TubeGeometry(q,64,3.4,10,false);
   const cmat=new THREE.ShaderMaterial({uniforms:{a:{value:new THREE.Color('#ffffff')},b:{value:new THREE.Color(RED)}},
