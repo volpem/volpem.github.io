@@ -291,7 +291,7 @@ const MATDEF={
   belt:   {c:'#131517', m:0,  r:.74, n:.10},   // correas
   // --- motores NEMA 17: tapas anodizadas negras y paquete de chapas al medio
   motor:  {c:'#1e2124', m:.35, r:.44, n:.08, cc:.18},  // tapas
-  motlam: {c:'#8d9298'},  // paquete de chapas: lo pinta nemaBand sobre la carcasa
+  motlam: {c:'#767c82'},  // paquete de chapas: lo pinta nemaBand sobre la carcasa
   // --- materiales de obra
   wood:   {c:'#c0a071', m:0,  r:.72, n:.13},   // tabla de multilaminado
   carton: {c:'#c2a47b', m:0,  r:.86, n:.15},   // caras de la matriz
@@ -300,13 +300,14 @@ const MATDEF={
   // --- cartucho y manguera
   tube:   {c:'#c4c8cd', m:.86, r:.34, n:.07},  // tubo del cartucho
   tubex:  {c:'#c9cdd1', m:.30, r:.22, o:.26, n:.05},  // el mismo, en corte para el detalle
-  hosegl: {c:'#eef2f2', m:0,  r:.06, o:.17, cc:1, mesh:1}  // PVC cristal con malla
+  hosegl: {c:'#eef2f2', m:0,  r:.06, o:.17, cc:1, mesh:1},  // PVC cristal con malla
+  cable:  {c:'#18191b', m:0,  r:.78, o:1, n:.08, fade:1}   // cable de alimentacion
 };// las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
 const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
 const MATALIAS={frost:'tube',hose:'hosegl',button:'chrome'};
 let MATTAG=null, PBR=null, ENV=null, LIGHTS=null, greyTex=null, shadowPl=null;
 let WHEELGEO=null, WHEELMESH=null, TUBEGEO=null, TUBEMESH=null, DARKGEO=null, DARKMESH=null;
-let BARBGEO=null, BARBMESH=null;
+let BARBGEO=null, BARBMESH=null, PANELGEO=null, PANELMESH=null;
 
 // --- entorno: un estudio pintado en un canvas equirrectangular y filtrado con PMREM.
 // Es lo que da los reflejos de los metales; sin esto el inox parece plastico gris.
@@ -358,6 +359,22 @@ function surface(mat,d){
   return mat;
 }
 
+// El cable se va para afuera del encuadre: en vez de cortarlo con un borde duro, se le baja
+// la opacidad a lo largo. Va en el material y no en la composicion porque aca no hay
+// composicion: lo que se ve es lo que sale del render.
+function fadeOut(mat){
+  const prev=mat.onBeforeCompile;
+  mat.onBeforeCompile=sh=>{
+    if(prev) prev(sh);
+    sh.vertexShader='varying vec2 vFD;\n'+sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n  vFD=uv;');
+    sh.fragmentShader='varying vec2 vFD;\n'+sh.fragmentShader.replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\n  gl_FragColor.a*=1.0-smoothstep(0.30,0.96,vFD.x);');
+  };
+  mat.customProgramCacheKey=()=>'fade';
+  return mat;
+}
+
 // La manguera es PVC cristal con malla de poliester: dos familias de hilos en diagonal que
 // se cruzan. Se dibujan sobre las coordenadas del tubo, que si las tiene.
 function braid(mat){
@@ -387,6 +404,7 @@ function buildPBR(){
     if(d.cc){o.clearcoat=d.cc;o.clearcoatRoughness=Math.min(.25,d.r);}
     let mt=surface(d.cc?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o),d);
     if(d.mesh) mt=braid(mt);
+    if(d.fade) mt=fadeOut(mt);
     if(k==='motor') mt=nemaBand(mt);
     PBR[k]=mt; }
   for(const a in MATALIAS) PBR[a]=PBR[MATALIAS[a]];
@@ -417,7 +435,7 @@ function buildPBR(){
    shadowPl.position.set(270,150,18.4); shadowPl.receiveShadow=true; shadowPl.renderOrder=-1;
    root.add(shadowPl);}
 
-  splitWheel(); splitTube(); splitAngles(); splitBarb();
+  splitWheel(); splitTube(); splitAngles(); splitBarb(); splitInterlock();
   return PBR;
 }
 
@@ -453,6 +471,14 @@ function splitWheel(){
   });
 }
 
+// El soporte del interlock, atras a la derecha, es negro y viene en la malla de los paneles.
+const INTERLOCK={x:[305,380], y:[296,332], z:[25,100]};
+function splitInterlock(){
+  const b=INTERLOCK;
+  splitByZone(PANELGEO,PANELMESH,['inox','dark'],
+    (x,y,z)=>(x>b.x[0]&&x<b.x[1]&&y>b.y[0]&&y<b.y[1]&&z>b.z[0]&&z<b.z[1])?1:0);
+}
+
 // Los dos perfiles L que sostienen la matriz de carton son de aluminio, pero vienen en la
 // malla de los plasticos negros.
 function splitAngles(){
@@ -466,29 +492,34 @@ function splitAngles(){
 const TUBEAX=[499,-87,87];
 function splitTube(){
   const A=TUBEAX, K=Math.SQRT1_2;
-  splitByZone(TUBEGEO,TUBEMESH,['thread','tube','alu','brass'],(x,y,z)=>{
+  splitByZone(TUBEGEO,TUBEMESH,['thread','tube','dark','brass'],(x,y,z)=>{
     const vx=x-A[0], vy=y-A[1], vz=z-A[2], t=vy*K+vz*K;
     const r=Math.hypot(vx,vy-t*K,vz-t*K);
     if(t>415&&t<625&&r>20&&r<33) return 1;                       // tubo
-    if(r<36&&((t>325&&t<382)||(t>620&&t<660))) return 2;         // tapas
+    if(r<36&&((t>325&&t<382)||(t>620&&t<660))) return 2;         // tapas, plastico negro
     if(r<14&&t>660&&t<706) return 3;                             // espiga
     return 0;
   });
 }
 
-// La espiga del pico vive en la malla de varillas roscadas del eje X.
+// Todo lo que lleva la ceramica desde la espiga hasta el pico es de bronce: la espiga, la
+// tuerca y el cuerpo de la boquilla. Vive en la malla de varillas roscadas del eje X, en
+// torno al eje del pico. El carro que lo sostiene queda afuera por radio.
 function splitBarb(){
   splitByZone(BARBGEO,BARBMESH,['thread','brass'],
-    (x,y,z)=>(Math.hypot(x-279,y-160)<7&&z>277&&z<296)?1:0);
+    (x,y,z)=>(Math.hypot(x-279,y-160)<15&&z>226&&z<298)?1:0);
 }
 
 // Motores NEMA 17: tapas de aluminio anodizado negro y el paquete de chapas al medio.
 // La banda se pinta en el shader en vez de partir la geometria: el cuerpo del motor son
 // dos triangulos por cara, asi que cualquier reparto por triangulo lo corta en diagonal.
 // Posiciones en coordenadas de mundo (x, z_CAD, -y_CAD), que es lo que ve el shader.
+// El cuerpo de un NEMA 17 mide 42 mm de lado: con radio 34 la banda se derramaba sobre el
+// soporte y los tornillos de alrededor. El paquete de chapas ocupa la mitad del cuerpo, con
+// una tapa de unos 8 mm en cada punta.
 const MOTORS=[
-  {p:[499.1,261.2,-170.7], a:[0,Math.SQRT1_2,-Math.SQRT1_2], c:-66.5, h:11,   r:34},  // extrusor
-  {p:[202.5,0,-189],       a:[0,1,0],                        c:59,    h:10.5, r:34}   // cama
+  {p:[499.1,261.2,-170.7], a:[0,Math.SQRT1_2,-Math.SQRT1_2], c:-66.5, h:9, r:23},  // extrusor
+  {p:[202.5,0,-189],       a:[0,1,0],                        c:59,    h:9, r:23}   // cama
 ];
 function nemaBand(mat){
   const c=new THREE.Color(MATDEF.motlam.c).convertSRGBToLinear();
@@ -509,9 +540,10 @@ function nemaBand(mat){
           '#include <color_fragment>\n  vec2 nmb=nemaB(vWP);\n'
           +'  diffuseColor.rgb=mix(diffuseColor.rgb,vec3('+f(c.r)+','+f(c.g)+','+f(c.b)+'),nmb.x);')
         .replace('#include <metalnessmap_fragment>',
-          '#include <metalnessmap_fragment>\n  metalnessFactor=mix(metalnessFactor,0.8,nmb.x);')
+          '#include <metalnessmap_fragment>\n  metalnessFactor=mix(metalnessFactor,0.55,nmb.x);')
         .replace('#include <roughnessmap_fragment>',
-          '#include <roughnessmap_fragment>\n  roughnessFactor+=nmb.x*sin(nmb.y*12.566)*0.09;');
+          '#include <roughnessmap_fragment>\n'
+          +'  roughnessFactor=mix(roughnessFactor,0.52+sin(nmb.y*12.566)*0.13,nmb.x);');
   };
   mat.customProgramCacheKey=()=>'nema';
   return mat;
@@ -561,6 +593,7 @@ function addDrawn(parent,geo,fill,line,angle){
   if(geo===TUBEGEO) TUBEMESH=m;
   if(geo===DARKGEO) DARKMESH=m;
   if(geo===BARBGEO) BARBMESH=m;
+  if(geo===PANELGEO) PANELMESH=m;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -620,6 +653,7 @@ for(const m of man){
   if(m.group==='fixed'&&m.mat==='thread'){TUBEGEO=g;}
   if(m.group==='fixed'&&m.mat==='dark'){DARKGEO=g;}
   if(m.group==='ejeX'&&m.mat==='thread'){BARBGEO=g;}
+  if(m.group==='housing'&&m.mat==='inox'){PANELGEO=g;}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
   else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
@@ -699,9 +733,11 @@ threadLines(new THREE.Vector3(120,218,104),new THREE.Vector3(0,0,1),428,groups.h
 threadLines(new THREE.Vector3(499,-6,168),AX,406,groups.piston);                                   // varilla del extrusor
 
 // ---- correas con dientes que avanzan con las poleas ----
-function makeBelt(c1,r1,c2,r2,n,w,pitch,toothH){
+function makeBelt(c1,r1,c2,r2,n,w,pitch,toothH,shift){
   const d3=c2.clone().sub(c1), ax=n.clone().multiplyScalar(d3.dot(n));
-  const off=ax.clone().multiplyScalar(.5), d2=d3.clone().sub(ax), d=d2.length();
+  // shift corre la banda sobre el eje: las dos poleas no tienen el mismo ancho, asi que
+  // el punto medio entre sus centros no es donde se tocan
+  const off=ax.clone().multiplyScalar(.5).addScaledVector(n,shift||0), d2=d3.clone().sub(ax), d=d2.length();
   const u=d2.clone().normalize(), v=new THREE.Vector3().crossVectors(n,u), O=c1.clone().add(off);
   const th=Math.acos((r1-r2)/d);
   const segs=[{t:'a',c:0,r:r1,a0:th,a1:2*Math.PI-th},{t:'l',p0:[r1*Math.cos(-th),r1*Math.sin(-th)],p1:[d+r2*Math.cos(-th),r2*Math.sin(-th)]},
@@ -738,7 +774,7 @@ function makeBelt(c1,r1,c2,r2,n,w,pitch,toothH){
 const ZN=new THREE.Vector3(0,0,1);
 const beltZ1=makeBelt(new THREE.Vector3(202.5,189,102),6.37,new THREE.Vector3(285,160,102),11.46,ZN,6,2,1.1);
 const beltZ2=makeBelt(new THREE.Vector3(202.5,189,117),6.37,new THREE.Vector3(120,218,117),11.46,ZN,6,2,1.1);
-const beltE=makeBelt(EMOT.clone(),8.59,NUT.clone(),17.19,AX,9,3,1.6);
+const beltE=makeBelt(EMOT.clone(),8.59,NUT.clone(),17.19,AX,9,3,1.6,1.0);
 
 // ---- pasta dentro del cartucho ----
 const axisPt=t=>new THREE.Vector3(499,t/Math.SQRT2-87,t/Math.SQRT2+87);
@@ -771,8 +807,10 @@ function tubePos(curve,tub,rad,rs,arr){
       arr[o]=P.x+rad*(co*N.x+si*B.x); arr[o+1]=P.y+rad*(co*N.y+si*B.y); arr[o+2]=P.z+rad*(co*N.z+si*B.z); } }
 }
 function hoseCurve(dx,dz){
-  // las puntas calzan hasta el tope de cada espiga, no apoyadas en la boca
-  const a=new THREE.Vector3(499,401.5,575.5), b=new THREE.Vector3(279+dx,160,275.5+dz);
+  // La punta de arriba arrancaba en el extremo de la espiga, apenas tocandola: la espiga
+  // del cartucho va de t 660 a 690 sobre el eje del embolo, asi que la manguera empieza en
+  // 661 y la cubre entera. La de abajo ya pasaba la espiga del pico.
+  const a=new THREE.Vector3(499,380.4,554.4), b=new THREE.Vector3(279+dx,160,275.5+dz);
   return new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
 }
 function setHoseFill(f){ hoseFill=f;
@@ -794,12 +832,30 @@ function drawHose(dx,dz){
     tubePos(curve,HTUB,4.3,HRAD,hoseClay.geometry.attributes.position.array);
     [hose,hoseClay].forEach(m=>{m.geometry.attributes.position.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();});
   }
-  [[clampA,.042],[clampB,.958]].forEach(([m,u])=>{
+  // las abrazaderas se miden en milimetros desde cada punta, no en fraccion del largo,
+  // para que caigan sobre la espiga aunque la manguera cambie de largo al moverse el eje
+  const uc=Math.min(.2,11/curve.getLength());
+  [[clampA,uc],[clampB,1-uc]].forEach(([m,u])=>{
     m.position.copy(curve.getPointAt(u));
     m.quaternion.setFromUnitVectors(UPY,curve.getTangentAt(u).normalize());
   });
   if(pbrMode&&PBR){ hose.material=PBR.hosegl; hoseClay.material=PBR.clay;
     clampA.material=clampB.material=PBR.inox; }
+}
+// ---- cable de alimentacion ----
+// Sale del interlock, cae al piso y se va del encuadre desvaneciendose.
+{
+  const q=new THREE.CubicBezierCurve3(
+    new THREE.Vector3(343,331,52), new THREE.Vector3(343,396,42),
+    new THREE.Vector3(318,458,10), new THREE.Vector3(196,512,7));
+  const cg=new THREE.TubeGeometry(q,64,3.4,10,false);
+  const cmat=new THREE.ShaderMaterial({uniforms:{a:{value:new THREE.Color('#ffffff')},b:{value:new THREE.Color(RED)}},
+    vertexShader:'varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){vU=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'uniform vec3 a;uniform vec3 b;varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){float d=abs(dot(normalize(vN),normalize(vV)));vec3 col=mix(b,a,smoothstep(.06,.26,d));gl_FragColor=vec4(col,(1.0-smoothstep(.30,.96,vU.x))*.92);}',
+    transparent:true,depthWrite:false,side:THREE.DoubleSide});
+  const cm=new THREE.Mesh(cg,cmat);
+  cm.userData.pbr='cable'; cm.userData.flat=true;   // flat: no tira sombra, se desvanece
+  cm.renderOrder=4; root.add(cm);
 }
 $('loading').remove();
 
