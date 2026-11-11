@@ -301,7 +301,8 @@ const MATDEF={
   tube:   {c:'#c4c8cd', m:.86, r:.34, n:.07},  // tubo del cartucho
   tubex:  {c:'#c9cdd1', m:.30, r:.22, o:.26, n:.05},  // el mismo, en corte para el detalle
   hosegl: {c:'#eef2f2', m:0,  r:.06, o:.17, cc:1, mesh:1},  // PVC cristal con malla
-  cable:  {c:'#18191b', m:0,  r:.78, o:1, n:.08, fade:1}   // cable de alimentacion
+  cable:  {c:'#18191b', m:0,  r:.78, o:1, n:.08, fade:1},  // cable de alimentacion
+  redled: {c:'#8e0d14', m:0,  r:.26, cc:.7, emi:'#ff2d18', emiI:.75}  // tecla retroiluminada
 };// las piezas que no vienen del STEP deducen su material del relleno de lamina que usan
 const PBRFALL={main:'steel',soft:'steel',matrix:'carton',clay:'clay',glass:'acrylic'};
 const MATALIAS={frost:'tube',hose:'hosegl',button:'chrome'};
@@ -402,6 +403,7 @@ function buildPBR(){
       envMap:ENV,envMapIntensity:1.35,side:THREE.DoubleSide,shadowSide:THREE.BackSide,
       transparent:tr,opacity:tr?d.o:1,depthWrite:!tr};
     if(d.cc){o.clearcoat=d.cc;o.clearcoatRoughness=Math.min(.25,d.r);}
+    if(d.emi){o.emissive=new THREE.Color(d.emi).convertSRGBToLinear();o.emissiveIntensity=d.emiI||1;}
     let mt=surface(d.cc?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o),d);
     if(d.mesh) mt=braid(mt);
     if(d.fade) mt=fadeOut(mt);
@@ -418,6 +420,9 @@ function buildPBR(){
   k1.shadow.bias=-0.00025; k1.shadow.normalBias=0.45; k1.shadow.radius=2;
   k1.target.position.set(280,300,-165); g.add(k1,k1.target);
   const k2=new THREE.DirectionalLight(0xdce8ff,.55); k2.position.set(900,420,-700); g.add(k2);
+  // Las tres luces son direccionales: adentro de un agujero no entra ninguna y el fondo
+  // quedaba negro del todo. Un rebote de cielo le pone piso.
+  g.add(new THREE.HemisphereLight(0xe2e9f2,0x72767b,.42));
   const k3=new THREE.DirectionalLight(0xffffff,.25); k3.position.set(180,-600,520); g.add(k3);
   g.add(new THREE.HemisphereLight(0xe8eef8,0x3c3a37,.55));
   scene.add(g); LIGHTS=g;
@@ -471,12 +476,20 @@ function splitWheel(){
   });
 }
 
-// El soporte del interlock, atras a la derecha, es negro y viene en la malla de los paneles.
+// Caja que exige los TRES vertices adentro. Los paneles vienen tejidos con triangulos que
+// cruzan la chapa entera, asi que mirar solo el centro pintaba media chapa de negro.
+const inBox=(v,b)=>{
+  for(let i=0;i<9;i+=3)
+    if(v[i]<b.x[0]||v[i]>b.x[1]||v[i+1]<b.y[0]||v[i+1]>b.y[1]||v[i+2]<b.z[0]||v[i+2]>b.z[1]) return false;
+  return true;
+};
+// El soporte del interlock, atras a la derecha, es negro; la tecla del interruptor va roja
+// y encendida. Las dos viven en la malla de los paneles.
 const INTERLOCK={x:[305,380], y:[296,332], z:[25,100]};
+const TECLA={x:[328,366], y:[320,336], z:[64,94]};
 function splitInterlock(){
-  const b=INTERLOCK;
-  splitByZone(PANELGEO,PANELMESH,['inox','dark'],
-    (x,y,z)=>(x>b.x[0]&&x<b.x[1]&&y>b.y[0]&&y<b.y[1]&&z>b.z[0]&&z<b.z[1])?1:0);
+  splitByZone(PANELGEO,PANELMESH,['inox','dark','redled'],(x,y,z,v)=>
+    inBox(v,TECLA)?2:(inBox(v,INTERLOCK)?1:0));
 }
 
 // Los dos perfiles L que sostienen la matriz de carton son de aluminio, pero vienen en la
@@ -518,8 +531,10 @@ function splitBarb(){
 // soporte y los tornillos de alrededor. El paquete de chapas ocupa la mitad del cuerpo, con
 // una tapa de unos 8 mm en cada punta.
 const MOTORS=[
-  {p:[499.1,261.2,-170.7], a:[0,Math.SQRT1_2,-Math.SQRT1_2], c:-66.5, h:9, r:23},  // extrusor
-  {p:[202.5,0,-189],       a:[0,1,0],                        c:59,    h:9, r:23}   // cama
+  // El cuerpo medido sobre sus caras laterales: el del extrusor va de t -78,5 a -49,5 y el
+  // de la cama de z 47,5 a 75,5. Centro y media altura salen de ahi, con 6 mm de tapa.
+  {p:[499.1,261.2,-170.7], a:[0,Math.SQRT1_2,-Math.SQRT1_2], c:-64,  h:8, r:30},  // extrusor
+  {p:[202.5,0,-189],       a:[0,1,0],                        c:61.5, h:8, r:30}   // cama
 ];
 function nemaBand(mat){
   const c=new THREE.Color(MATDEF.motlam.c).convertSRGBToLinear();
@@ -800,18 +815,27 @@ const claySkin=new THREE.ShaderMaterial({uniforms:{a:{value:new THREE.Color('#b8
   fragmentShader:'uniform vec3 a;uniform vec3 b;uniform vec3 l;uniform float tm;varying vec3 vN;varying vec3 vV;varying vec2 vU;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float d=abs(dot(n,normalize(vV)));float dif=clamp(.5+.5*dot(n,normalize(vec3(-.45,.8,.45))),0.,1.);vec3 col=mix(b,a,dif);col*=.9+.1*sin(vU.x*120.-tm*9.);col=mix(l,col,smoothstep(.06,.16,d));gl_FragColor=vec4(col,1.);}',
   side:THREE.DoubleSide});
 function tubePos(curve,tub,rad,rs,arr){
-  const fr=curve.computeFrenetFrames(tub,false), P=new THREE.Vector3();
-  for(let i=0;i<=tub;i++){ curve.getPointAt(i/tub,P);
+  // getPointAt escribe en el vector que se le pasa si la curva es una Bezier, pero una
+  // CurvePath devuelve uno nuevo y deja el otro intacto: hay que tomar lo que devuelve.
+  const fr=curve.computeFrenetFrames(tub,false); let P;
+  for(let i=0;i<=tub;i++){ P=curve.getPointAt(i/tub);
     const N=fr.normals[i], B=fr.binormals[i];
     for(let j=0;j<=rs;j++){ const v=j/rs*Math.PI*2, si=Math.sin(v), co=-Math.cos(v), o=(i*(rs+1)+j)*3;
       arr[o]=P.x+rad*(co*N.x+si*B.x); arr[o+1]=P.y+rad*(co*N.y+si*B.y); arr[o+2]=P.z+rad*(co*N.z+si*B.z); } }
 }
 function hoseCurve(dx,dz){
-  // La punta de arriba arrancaba en el extremo de la espiga, apenas tocandola: la espiga
-  // del cartucho va de t 660 a 690 sobre el eje del embolo, asi que la manguera empieza en
-  // 661 y la cubre entera. La de abajo ya pasaba la espiga del pico.
+  // La espiga del cartucho va de t 660 a 690 sobre el eje del embolo, asi que la manguera
+  // empieza en 661. Pero no alcanza con que salga tangente: una Bezier se despega del eje
+  // en cuadratica, y a los 29 mm ya se habia corrido unos 4 mm, mas que el radio de la
+  // manguera, asi que la espiga asomaba por el costado. Los primeros 34 mm van rectos
+  // sobre el eje y recien ahi empieza la curva.
   const a=new THREE.Vector3(499,380.4,554.4), b=new THREE.Vector3(279+dx,160,275.5+dz);
-  return new THREE.CubicBezierCurve3(a,a.clone().addScaledVector(AX,170),b.clone().add(new THREE.Vector3(0,0,230)),b);
+  const a2=a.clone().addScaledVector(AX,34);
+  const path=new THREE.CurvePath();
+  path.add(new THREE.LineCurve3(a,a2));
+  path.add(new THREE.CubicBezierCurve3(a2,a2.clone().addScaledVector(AX,150),
+    b.clone().add(new THREE.Vector3(0,0,230)),b));
+  return path;
 }
 function setHoseFill(f){ hoseFill=f;
   if(hoseClay) hoseClay.geometry.setDrawRange(0,Math.max(0,Math.round(f*HTUB))*HRAD*6); }
@@ -956,7 +980,7 @@ const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial(
        float dz=(-S.z)-sz;
        occ+=step(.35,dz)*smoothstep(0.,1.,RAD/max(abs(z-sz),1e-3));
      }
-     return clamp(1.-occ/12.*.9,0.,1.);
+     return clamp(1.-occ/12.*.72,0.,1.);
    }
    void main(){vec4 c=texture2D(tC,vU);
     if(mode>.5){
