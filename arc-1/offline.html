@@ -1365,10 +1365,16 @@ document.fonts&&document.fonts.ready.then(drawTpl); drawTpl();
 
 // ================= ESCENA 3D =================
 const stage=$('stage');
+// Equipo flojo: sin WebGL2 la GPU es vieja. Se decide aca arriba porque ademas de apagar
+// sombras y oclusion, el cordon se teje con la mitad de puntos.
+const LITE=(/[?&]lite\b/.test(location.search))||!(function(){
+  try{ return !!document.createElement('canvas').getContext('webgl2'); }catch(e){ return false; }
+})();
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);
 renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15;
-renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled=!LITE; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+if(LITE) renderer.setPixelRatio(1);
 stage.insertBefore(renderer.domElement,stage.firstChild);
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(30,1,20,8000);
@@ -1840,11 +1846,50 @@ const sprP=new THREE.Group();  sprP.add(groups.resorte); root.add(sprP);
   groups.embolo.matrixAutoUpdate=false; groups.embolo.matrix.copy(M); groups.piston.add(groups.embolo); }
 
 const panels=[];
-const man=window.__MAQ_JSON, buf=(function(){
-  const bin=atob(window.__MAQ_B64); const u=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
-  window.__MAQ_B64=null;            // 11 MB de texto que ya no hacen falta
+// El modelo pesa 7,9 MB. GitHub lo manda comprimido en 2,5, pero en un equipo con poca
+// memoria o en un wifi de evento la descarga igual se puede cortar: se reintenta y se
+// muestra cuanto va. maquina.bin es el binario crudo; maquina.txt es el base64 de antes,
+// que queda como respaldo por si quedo una pagina vieja en cache.
+async function leerConProgreso(res){
+  const l=$('loading');
+  if(!res.body||!res.body.getReader) return res.arrayBuffer();
+  const rd=res.body.getReader(), partes=[]; let n=0;
+  for(;;){ const {done,value}=await rd.read(); if(done) break;
+    partes.push(value); n+=value.length;
+    if(l) l.textContent='Cargando modelo… '+(n/1048576).toFixed(1)+' MB'; }
+  const u=new Uint8Array(n); let o=0;
+  for(const q of partes){ u.set(q,o); o+=q.length; }
   return u.buffer;
+}
+async function cargarModelo(){
+  let ultimo;
+  for(let intento=1;intento<=3;intento++){
+    try{
+      const man=await fetch('maquina.json').then(r=>{if(!r.ok)throw new Error('maquina.json '+r.status);return r.json();});
+      let res=await fetch('maquina.bin');
+      if(res.ok) return [man,await leerConProgreso(res)];
+      res=await fetch('maquina.txt');                     // respaldo
+      if(!res.ok) throw new Error('maquina.bin y maquina.txt '+res.status);
+      const b=(await res.text()).trim(), u=new Uint8Array(b.length/4*3|0); let o=0;
+      for(let i=0;i<b.length;i+=65536){ const bin=atob(b.substr(i,65536));
+        for(let k=0;k<bin.length;k++) u[o++]=bin.charCodeAt(k); }
+      return [man,u.buffer.slice(0,o)];
+    }catch(e){
+      ultimo=e;
+      const l=$('loading'); if(l) l.textContent='Se cortó la descarga. Reintentando ('+intento+'/3)…';
+      await new Promise(r=>setTimeout(r,800*intento));
+    }
+  }
+  throw ultimo;
+}
+const man=window.__MAQ_JSON, buf=(function(){
+  // De a 64 kB (multiplo de 4, que es lo que pide base64) para no crear de una el string
+  // binario de 8 MB que devolveria atob sobre todo el texto junto.
+  const b=window.__MAQ_B64, u=new Uint8Array(b.length/4*3|0); let o=0;
+  for(let i=0;i<b.length;i+=65536){ const bin=atob(b.substr(i,65536));
+    for(let k=0;k<bin.length;k++) u[o++]=bin.charCodeAt(k); }
+  window.__MAQ_B64=null;            // 10,5 MB de texto que ya no hacen falta
+  return u.buffer.slice(0,o);
 })();
 for(const m of man){
   MATTAG=m.mat;
@@ -1884,7 +1929,7 @@ const DX0=6, ZTIP=203, WHX=82.5, WHZ=201.5, WHR=12.2, MY=137.5, PROFILE_X=100;
 const zOffOf=h=>BED_Z+h+LAYER-ZTIP;
 
 // --- piezas que dependen del perfil ---
-const SPT=72, NS=TURNS*SPT+1;
+const SPT=LITE?36:72, NS=TURNS*SPT+1;   // en liviano, media vuelta de resolucion
 // TURNS es el maximo que da la maquina; NTURNS es lo que mide la pieza que se esta
 // imprimiendo ahora, que puede ser mas baja. NSU son los puntos del cordon que se usan.
 let NTURNS=TURNS, NSU=NS;
@@ -1892,7 +1937,7 @@ function setPieceH(mm){ NTURNS=Math.max(8,Math.min(TURNS,Math.round(mm/LAYER)));
 // Seccion del cordon: una elipse, no un rectangulo. La pasta sale redonda del pico y se
 // aplasta contra la capa de abajo, asi que el cordon es mas ancho que alto y entre vuelta
 // y vuelta queda un surco. Es lo que da la textura acanalada de una pieza torneada.
-const CK=12, CRA=3.3, CRB=1.42;   // puntos de la seccion, semieje radial y semieje vertical
+const CK=LITE?8:12, CRA=3.3, CRB=1.42;   // puntos de la seccion, semieje radial y semieje vertical
 const CSEC=[]; for(let k=0;k<CK;k++){const a=k/CK*2*Math.PI;CSEC.push([Math.cos(a)*CRA,Math.sin(a)*CRB]);}
 const cpos=new Float32Array(NS*CK*3), cidx=new Uint32Array((NS-1)*CK*6); let q=0;
 for(let i=0;i<NS-1;i++){for(let k=0;k<CK;k++){const a=i*CK+k,b=i*CK+(k+1)%CK,c=a+CK,d=b+CK;cidx[q++]=a;cidx[q++]=c;cidx[q++]=b;cidx[q++]=b;cidx[q++]=c;cidx[q++]=d;}}
@@ -2225,8 +2270,6 @@ const postScene=new THREE.Scene(), postCam=new THREE.OrthographicCamera(-1,1,1,-
 // Modo liviano para equipos flojos: sin sombras, sin oclusion ambiental y sin
 // sobremuestreo. Se enciende solo cuando no hay WebGL2 (senal clara de GPU vieja) y
 // tambien se puede forzar con ?lite en la direccion.
-const LITE=(/[?&]lite\b/.test(location.search))||!renderer.capabilities.isWebGL2;
-if(LITE){ renderer.shadowMap.enabled=false; renderer.setPixelRatio(1); }
 const SSMIN=1, SSMAX=LITE?1:2.2;
 let ssWant=LITE?1:1.5, capW=0, capH=0;
 function applyRT(){
