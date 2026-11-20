@@ -1365,6 +1365,8 @@ $('reset').onclick=()=>{pts=EXAMPLE.slice();free=null;$('mode').setAttribute('ar
 document.fonts&&document.fonts.ready.then(drawTpl); drawTpl();
 
 // ================= ESCENA 3D =================
+function etapa(txt){ const l=$('loading'); if(l) l.textContent=txt; }
+etapa('Iniciando…');
 const stage=$('stage');
 // Equipo flojo: sin WebGL2 la GPU es vieja. Se decide aca arriba porque ademas de apagar
 // sombras y oclusion, el cordon se teje con la mitad de puntos.
@@ -1895,6 +1897,7 @@ const man=window.__MAQ_JSON, buf=(function(){
   window.__MAQ_B64=null;            // 10,5 MB de texto que ya no hacen falta
   return u.buffer.slice(0,o);
 })();
+etapa('Leyendo el modelo…'); await new Promise(r=>setTimeout(r,0));
 let armadas=0;
 for(const m of man){
   // Soltar el hilo cada tanto: si no, el navegador no repinta y parece colgado. De paso
@@ -1932,6 +1935,7 @@ for(const m of man){
 }
 
 MATTAG=null;
+etapa('Preparando la escena…'); await new Promise(r=>setTimeout(r,0));
 const TURNS=100, LAYER=2, PLATE_Z=174, WOOD=12, BED_Z=PLATE_Z+WOOD;
 { const g=new THREE.CylinderGeometry(110,110,WOOD,128,1); g.rotateX(Math.PI/2); g.translate(C.x,C.y,PLATE_Z+WOOD/2);
   MATTAG='wood'; addDrawn(groups.bed,g,'main','main',20); MATTAG=null; }
@@ -1990,6 +1994,7 @@ function buildFromProfile(){
   // silueta final, punteada
 
 }
+etapa('Calculando la pieza…'); await new Promise(r=>setTimeout(r,0));
 buildFromProfile();
 
 // ---- rosca de las dos varillas roscadas (Tr8×2): hélice de cresta y de fondo ----
@@ -2151,10 +2156,6 @@ let cableObj=null;
   cm.userData.pbr='cable'; cm.userData.flat=true;   // flat: no tira sombra, se desvanece
   cm.renderOrder=4; cableObj.add(cm); root.add(cableObj);
 }
-if(LITE){
-  const l=$('loading'); if(l) l.textContent='Preparando materiales…';
-  await new Promise(r=>setTimeout(r,0));
-}
 $('loading').remove();
 
 // ================= TIEMPO =================
@@ -2313,9 +2314,10 @@ function tuneSS(dt){
 if(LITE) post.material.uniforms.aoOn.value=0;
 new ResizeObserver(resize).observe(stage); resize();
 document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
-// En liviano no hay lineas de contorno, asi que la lamina no se puede dibujar: se arranca
-// directamente en materiales y el boton se esconde.
-if(LITE){ setMaterials(true); $('mats').hidden=true; }
+// En liviano se QUEDA en lamina. Parece al reves, pero los materiales reales obligan a
+// compilar 25 shaders pesados y a generar el mapa de entorno con PMREM, que es lo mas
+// caro que hay para una GPU floja. La lamina usa shaders de diez lineas, y su contorno
+// no sale de las lineas que sacamos sino del pase de profundidad, asi que se sigue viendo.
 
 // ================= RECORRIDO GUIADO =================
 // Una toma declara: cuanto dura en pantalla (dur), que tramo del ciclo de la maquina
