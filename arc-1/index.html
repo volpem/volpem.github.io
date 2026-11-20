@@ -313,7 +313,7 @@ document.fonts&&document.fonts.ready.then(drawTpl); drawTpl();
 const stage=$('stage');
 // Equipo flojo: sin WebGL2 la GPU es vieja. Se decide aca arriba porque ademas de apagar
 // sombras y oclusion, el cordon se teje con la mitad de puntos.
-const LITE=(/[?&]lite\b/.test(location.search))||!(function(){
+const LITE=window.__FORCE_LITE===true||(/[?&]lite\b/.test(location.search))||!(function(){
   try{ return !!document.createElement('canvas').getContext('webgl2'); }catch(e){ return false; }
 })();
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
@@ -745,6 +745,9 @@ function addDrawn(parent,geo,fill,line,angle){
   if(geo===FEETG) FEETM=m;
   if(geo===FEET2G) FEET2M=m;
   if(geo===REDGEO) REDMESH=m;
+  // EdgesGeometry es lo mas caro de toda la carga: recorre cada arista buscando los
+  // quiebres. En liviano el estilo lamina no se usa, asi que no se calculan.
+  if(LITE) return;
   const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,angle||32),LINE[line||'main']); l.renderOrder=3; parent.add(l);
 }
 // sombra difusa en el piso, como en las láminas de referencia
@@ -829,7 +832,14 @@ async function cargarModelo(){
   throw ultimo;
 }
 const [man,buf]=await cargarModelo();
+let armadas=0;
 for(const m of man){
+  // Soltar el hilo cada tanto: si no, el navegador no repinta y parece colgado. De paso
+  // se ve por donde va, que es lo unico que dice algo cuando un equipo no llega.
+  if(++armadas%3===0){
+    const l=$('loading'); if(l) l.textContent='Armando el modelo… '+armadas+'/'+man.length;
+    await new Promise(r=>setTimeout(r,0));
+  }
   MATTAG=m.mat;
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buf,m.vOff,m.vCount*3),3));
@@ -851,8 +861,8 @@ for(const m of man){
   if(m.group==='susanMid'){MATTAG='dark';}
   if(m.mat==='acrylic'||m.mat==='glass') addDrawn(groups[m.group],g,'glass','glass',40);
   else if(m.mat==='profile'){addDrawn(groups[m.group],g,'main','main',22);}
-  else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}
-  else if(m.mat!=='inox'){addDrawn(groups[m.group],g,m.mat==='thread'?'soft':'main',m.mat==='thread'?'faint':'main',m.mat==='thread'?75:32);if(m.mat!=='thread')groups[m.group].add(new THREE.Mesh(g,OUTLINE));}
+  else if(m.mat==='contour'){addDrawn(groups[m.group],g,'main','main',32);if(!LITE){const o=new THREE.Mesh(g,OUTLINE);groups[m.group].add(o);}}
+  else if(m.mat!=='inox'){addDrawn(groups[m.group],g,m.mat==='thread'?'soft':'main',m.mat==='thread'?'faint':'main',m.mat==='thread'?75:32);if(m.mat!=='thread'&&!LITE)groups[m.group].add(new THREE.Mesh(g,OUTLINE));}
   else if(m.mat==='thread') addDrawn(groups[m.group],g,'soft','faint',75);
   else if(m.mat==='inox'&&m.group==='fixed'){const pg=new THREE.Group();addDrawn(pg,g,'main','main',32);groups.fixed.add(pg);panels.push(pg);}
   else addDrawn(groups[m.group],g,'main','main',32);
@@ -1078,6 +1088,10 @@ let cableObj=null;
   cm.userData.pbr='cable'; cm.userData.flat=true;   // flat: no tira sombra, se desvanece
   cm.renderOrder=4; cableObj.add(cm); root.add(cableObj);
 }
+if(LITE){
+  const l=$('loading'); if(l) l.textContent='Preparando materiales…';
+  await new Promise(r=>setTimeout(r,0));
+}
 $('loading').remove();
 
 // ================= TIEMPO =================
@@ -1236,6 +1250,9 @@ function tuneSS(dt){
 if(LITE) post.material.uniforms.aoOn.value=0;
 new ResizeObserver(resize).observe(stage); resize();
 document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
+// En liviano no hay lineas de contorno, asi que la lamina no se puede dibujar: se arranca
+// directamente en materiales y el boton se esconde.
+if(LITE){ setMaterials(true); $('mats').hidden=true; }
 
 // ================= RECORRIDO GUIADO =================
 // Una toma declara: cuanto dura en pantalla (dur), que tramo del ciclo de la maquina
