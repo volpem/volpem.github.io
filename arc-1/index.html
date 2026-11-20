@@ -66,6 +66,25 @@ button[aria-pressed="true"].toggle{background:var(--ink);color:var(--paper)}
 .legend span{display:flex;align-items:center;gap:5px}
 .sw{width:14px;height:8px;display:inline-block}
 #warn{font-size:12px;font-weight:600;color:var(--red);min-height:1.2em}
+button.small{font:600 10.5px var(--f);letter-spacing:.05em;padding:7px 10px}
+/* modo evento: en la tablet se ve solo el visor y el ciclo corre solo */
+body.kiosk aside{display:none}
+body.kiosk .app{grid-template-columns:minmax(0,1fr)}
+#kioskBar{position:absolute;left:0;right:0;bottom:0;z-index:8;display:flex;gap:12px;justify-content:center;
+  padding:18px;background:linear-gradient(to top,rgba(255,255,255,.94),rgba(255,255,255,0))}
+#kioskBar button{font-size:13.5px;padding:14px 24px}
+#kioskBar[hidden]{display:none}   /* display:flex le gana al atributo hidden */
+#kioskTit{position:absolute;left:30px;top:26px;z-index:8;pointer-events:none}
+#kioskTit b{display:block;font-size:21px;font-weight:700;text-transform:uppercase;line-height:1.1}
+#kioskTit b em{font-style:normal;color:var(--red)}
+#kioskTit span{display:block;font-size:12px;color:var(--grey);margin-top:5px;letter-spacing:.04em;text-transform:uppercase}
+/* pantalla de dibujo a mano alzada */
+#dibujo{position:fixed;inset:0;z-index:60;background:var(--paper);display:none;flex-direction:column;
+  align-items:center;gap:12px;padding:16px max(16px,env(safe-area-inset-right,0px)) 18px max(16px,env(safe-area-inset-left,0px))}
+#dibujo.on{display:flex}
+#dcv{flex:1 1 auto;min-height:0;width:100%;height:100%;object-fit:contain;touch-action:none;cursor:crosshair}
+#dBtns{display:flex;gap:10px;flex:0 0 auto}
+#dBtns button{font-size:13px;padding:13px 22px}
 #reelPct{font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--red);font-variant-numeric:tabular-nums}
 button:disabled{opacity:.45;cursor:default}
 .foot{color:var(--grey);font-size:11px;line-height:1.5;margin-top:auto}
@@ -80,6 +99,11 @@ button:disabled{opacity:.45;cursor:default}
 <div class="app">
   <div id="stage"><div id="loading">Cargando modelo…</div>
     <div id="cine" hidden><div id="cineTxt"><b id="cineTit"></b><span id="cineSub"></span></div><div id="cineBar"></div></div>
+    <div id="kioskTit" hidden><b>Torno aditivo <em>de cerámica</em></b><span>Grupo 1 · Tecnología 3 · FADU-UBA</span></div>
+    <div id="kioskBar" hidden>
+      <button id="kDraw" class="redbtn">Dibujá tu pieza</button>
+      <button id="kExit">Salir</button>
+    </div>
   </div>
   <aside>
     <div>
@@ -96,6 +120,7 @@ button:disabled{opacity:.45;cursor:default}
       <button id="mats" class="toggle" aria-pressed="false" title="Cambia el estilo de lamina por los materiales reales">Materiales</button>
       <button id="tour" class="toggle" aria-pressed="false" title="Secuencia guiada de tomas por la maquina">Recorrido</button>
       <button id="reel" class="redbtn" title="Graba el recorrido como video vertical 1080x1920, listo para Instagram">Grabar reel</button>
+      <button id="evento" title="Pantalla para la tablet: imprime una pieza atras de otra, sola">Modo evento</button>
       <span id="reelPct"></span>
     </div>
     <div class="phase"><span class="dot"></span><span id="phase">Imprimiendo</span></div>
@@ -124,6 +149,7 @@ button:disabled{opacity:.45;cursor:default}
         <button id="reset">Ejemplo</button>
         <button id="apply" class="redbtn">Imprimir esta matriz</button>
       </div>
+      <button id="dibujar" class="small">O dibujá tu perfil a mano en pantalla grande</button>
     </section>
     <p class="foot"><strong style="color:var(--ink);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10.5px">Grupo 1</strong><br>Lautaro Blanco · Lionel Elías · Carlos Hernández · Tao Ospina · Lucía Páez · Matías Volpe</p>
     <p class="foot">Límites usados: altura 200 mm (100 vueltas de 2 mm), Ø 40 a 150 mm. Matriz, tabla, pieza y manguera dibujadas aparte; el resto sale del STEP del conjunto. Arrastrá el visor para girar, rueda o pellizco para acercar.</p>
@@ -132,6 +158,14 @@ button:disabled{opacity:.45;cursor:default}
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<div id="dibujo">
+  <canvas id="dcv" width="900" height="1120" aria-label="Dibujá el perfil de tu pieza"></canvas>
+  <div id="dBtns">
+    <button id="dBack">Atrás</button>
+    <button id="dClear">Borrar</button>
+    <button id="dLoad" class="redbtn">Cargar</button>
+  </div>
+</div>
 <script>
 (async function(){
 const $=id=>document.getElementById(id);
@@ -160,6 +194,32 @@ function currentProfile(){
 }
 prof=currentProfile();
 const R=h=>{h=Math.max(0,Math.min(H,h));const i=Math.floor(h),f=h-i;return i>=H?prof[H]:prof[i]*(1-f)+prof[i+1]*f;};
+
+// ================= PIEZAS AL AZAR (modo evento) =================
+// Perfiles suaves y seguros de imprimir: el radio no se mueve mas de 20 mm en toda la
+// pieza y la pendiente se limita a 20 grados, cuando la plantilla recien avisa a los 30.
+// Conservador a proposito: en un evento la maquina tiene que salir bien siempre.
+function randomPiece(){
+  const hMax=120+Math.floor(Math.random()*5)*20;     // 120, 140, 160, 180 o 200 mm
+  const base=32+Math.random()*26;                    // radio medio 32..58
+  const amp=4+Math.random()*6;                       // +-4..10 => hasta 20 mm de variacion
+  const k1=1+Math.floor(Math.random()*2), k2=k1+1;   // una o dos panzas
+  const ph=Math.random()*Math.PI, mix=.4+Math.random()*.4;
+  const p=new Float32Array(H+1);
+  for(let h=0;h<=H;h++){
+    const u=Math.min(1,h/hMax);
+    p[h]=base+amp*(mix*Math.sin(u*Math.PI*k1+ph)+(1-mix)*Math.sin(u*Math.PI*k2+ph*1.7));
+  }
+  for(let h=0;h<6;h++) p[h]=p[6];                    // base plana, como apoya de verdad
+  const TAN=Math.tan(20*Math.PI/180);
+  for(let h=1;h<=H;h++){const d=p[h]-p[h-1];if(Math.abs(d)>TAN)p[h]=p[h-1]+Math.sign(d)*TAN;}
+  let mn=1e9,mx=-1e9; for(let h=0;h<=hMax;h++){if(p[h]<mn)mn=p[h];if(p[h]>mx)mx=p[h];}
+  const off=(mx>RMAX-3?RMAX-3-mx:0)+(mn<RMIN+3?RMIN+3-mn:0);
+  for(let h=0;h<=H;h++) p[h]=Math.max(RMIN+1,Math.min(RMAX-1,p[h]+off));
+  return {p,h:hMax};
+}
+const PIECES=[]; for(let i=0;i<14;i++) PIECES.push(randomPiece());
+let pieceI=Math.floor(Math.random()*PIECES.length), queued=null;
 
 // ================= PLANTILLA DE DIBUJO =================
 const cv=$('draw'), cx=cv.getContext('2d');
@@ -744,6 +804,10 @@ const zOffOf=h=>BED_Z+h+LAYER-ZTIP;
 
 // --- piezas que dependen del perfil ---
 const SPT=72, NS=TURNS*SPT+1;
+// TURNS es el maximo que da la maquina; NTURNS es lo que mide la pieza que se esta
+// imprimiendo ahora, que puede ser mas baja. NSU son los puntos del cordon que se usan.
+let NTURNS=TURNS, NSU=NS;
+function setPieceH(mm){ NTURNS=Math.max(8,Math.min(TURNS,Math.round(mm/LAYER))); NSU=NTURNS*SPT+1; }
 // Seccion del cordon: una elipse, no un rectangulo. La pasta sale redonda del pico y se
 // aplasta contra la capa de abajo, asi que el cordon es mas ancho que alto y entre vuelta
 // y vuelta queda un surco. Es lo que da la textura acanalada de una pieza torneada.
@@ -758,8 +822,8 @@ const lpos=new Float32Array(NS*3), lgeo=new THREE.BufferGeometry(); lgeo.setAttr
 const layerLine=new THREE.Line(lgeo,new THREE.LineBasicMaterial({color:new THREE.Color('#7a0013').convertSRGBToLinear(),transparent:true,opacity:.5,toneMapped:false})); layerLine.renderOrder=3; groups.bed.add(layerLine);
 let matrixObj=null, ghost=null, L=new Float64Array(NS), P0=-125;
 function buildFromProfile(){
-  for(let i=0;i<NS;i++){
-    const u=i/(NS-1), th=u*TURNS*2*Math.PI, h=u*TURNS*LAYER, r=R(h);
+  for(let i=0;i<NSU;i++){
+    const u=i/(NSU-1), th=u*NTURNS*2*Math.PI, h=u*NTURNS*LAYER, r=R(h);
     const ca=Math.cos(Math.PI+th), sa=Math.sin(Math.PI+th);   // cama en sentido horario
     // la pasta nunca sale perfectamente pareja: el cordon late y se corre un poco
     const w=1+.055*Math.sin(th*6.3+h*.9)+.03*Math.sin(th*19.7+1.7);
@@ -769,7 +833,7 @@ function buildFromProfile(){
     const o=i*CK*3; lpos[i*3]=cpos[o];lpos[i*3+1]=cpos[o+1];lpos[i*3+2]=cpos[o+2];
     if(i) L[i]=L[i-1]+2*Math.PI*r/SPT;
   }
-  P0=40-L[NS-1]*6*2/(Math.PI*52.2*52.2/4);   // el émbolo termina cerca del adaptador
+  P0=40-L[NSU-1]*6*2/(Math.PI*52.2*52.2/4);   // el émbolo termina cerca del adaptador
   cgeo.attributes.position.needsUpdate=true; cgeo.computeVertexNormals(); cgeo.computeBoundingSphere();
   lgeo.attributes.position.needsUpdate=true; lgeo.computeBoundingSphere();
   // matriz positiva: del borde que toca el rodillo a la cara del perfil de aluminio
@@ -953,7 +1017,7 @@ let cableObj=null;
 $('loading').remove();
 
 // ================= TIEMPO =================
-const T_IDLE=2, T_DOWN=2.5, T_FILL=3, T_PRINT=70, T_HOLD=4, T_BACK=6, CYCLE=T_IDLE+T_DOWN+T_FILL+T_PRINT+T_HOLD+T_BACK;
+const T_IDLE=2, T_DOWN=2.5, T_FILL=3, T_PRINT=70, T_HOLD=5, T_BACK=6, CYCLE=T_IDLE+T_DOWN+T_FILL+T_PRINT+T_HOLD+T_BACK;
 const TUBE_A=Math.PI*52.2*52.2/4;
 let t=0, playing=true, speed=1, lastT=performance.now();
 const fmt=(v,d=1)=>v.toFixed(d).replace('.',',');
@@ -970,13 +1034,13 @@ let lastU=0;
 function update(){
   const s=state(t%CYCLE);
   const uz=s.back?1-ease(s.back):s.u; lastU=uz;
-  const h=uz*TURNS*LAYER, theta=uz*TURNS*2*Math.PI;
+  const h=uz*NTURNS*LAYER, theta=uz*NTURNS*2*Math.PI;
   const r=R(h), dx=DX0-r, zOff=zOffOf(h)+s.pre*30;
   bedP.rotation.z=-theta; midP.rotation.z=-theta/2; husP.rotation.z=-theta; motP.rotation.z=-theta*36/20;
   groups.carroZ.position.z=zOff;
   groups.ejeX.position.set(dx,0,zOff);
   sprP.position.set(0,0,zOff); if(Math.abs(dx-(sprP.userData.dx??1e9))>.05){bendSpring(dx);sprP.userData.dx=dx;}
-  const n=Math.round(s.u*(NS-1)), stroke=L[n]*6*2/TUBE_A;
+  const n=Math.round(s.u*(NSU-1)), stroke=L[n]*6*2/TUBE_A;
   const reset=s.back?ease(s.back):0, sp=P0+stroke*(1-reset);
   groups.piston.position.copy(AX).multiplyScalar(sp);
   nutP.setRotationFromAxisAngle(AX,sp*Math.PI);
@@ -990,7 +1054,7 @@ function update(){
   clay.visible=layerLine.visible=!s.back;
   drawHose(dx,zOff);
   $('phase').textContent=s.ph;
-  $('rTurn').textContent=Math.floor(uz*TURNS)+' / '+TURNS;
+  $('rTurn').textContent=Math.floor(uz*NTURNS)+' / '+NTURNS;
   $('rZ').textContent=fmt(h)+' mm';
   $('rD').textContent='Ø '+Math.round(2*r)+' mm';
   $('rP').textContent=fmt(stroke*(1-reset))+' mm';
@@ -1110,7 +1174,7 @@ document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
 // de donde a donde va la camara, y que piezas se vuelven transparentes para ver adentro.
 // Coordenadas de mundo: x = x del CAD, y = z del CAD (altura), z = -y del CAD.
 const wp=(x,y,z)=>new THREE.Vector3(x,z,-y);
-const hNow=()=>lastU*TURNS*LAYER;
+const hNow=()=>lastU*NTURNS*LAYER;
 const pNozzle=()=>wp(C.x-R(hNow()),C.y,BED_Z+hNow()+LAYER);          // el pico, que se corre con el radio
 const pWheel =()=>wp(WHX+DX0-R(hNow()),MY,WHZ+zOffOf(hNow()));       // la rueda del seguidor, que sube con el Z
 
@@ -1417,11 +1481,138 @@ async function recordReel(){
 }
 $('reel').onclick=()=>{ if(!recording) recordReel(); };
 
+// ================= MODO EVENTO =================
+// Para la tablet: la maquina imprime una pieza atras de otra sin que nadie toque nada.
+// Al terminar se queda 5 segundos con la pieza hecha, despues desaparece, el eje vuelve a
+// cero mientras se llena la manguera y arranca la siguiente.
+let kiosk=false, cycleN=-1;
+function nextPiece(){
+  const q=queued||PIECES[pieceI++%PIECES.length]; queued=null;
+  prof=q.p; setPieceH(q.h); buildFromProfile();
+}
+function setKiosk(on){
+  kiosk=on; document.body.classList.toggle('kiosk',on);
+  $('kioskBar').hidden=!on; $('kioskTit').hidden=!on;
+  if(on){
+    if(cine) setCine(false,true);
+    if(!pbrMode) setMaterials(true);
+    if(!playing) $('play').click();
+    go('piece'); nextPiece(); t=0; cycleN=0;
+  }
+  resize();
+}
+$('evento').onclick=()=>setKiosk(true);
+$('kExit').onclick=()=>setKiosk(false);
+
+// ================= PANTALLA DE DIBUJO =================
+// Un lienzo grande con cotas en los margenes: se traza el borde de la pieza de abajo hacia
+// arriba y la altura de la pieza es hasta donde haya llegado el trazo.
+const dcv=$('dcv'), dg=dcv.getContext('2d');
+const DW=900, DH=1120, DP={l:112,r:44,t:44,b:112}, DRV=90;
+const DX=r=>DP.l+(r/DRV)*(DW-DP.l-DP.r), DY=h=>DH-DP.b-(h/H)*(DH-DP.t-DP.b);
+const dToR=x=>(x-DP.l)/(DW-DP.l-DP.r)*DRV, dToH=y=>(DH-DP.b-y)/(DH-DP.t-DP.b)*H;
+let dfree=null, dTop=0, dLast=null;
+function dDraw(){
+  const g=dg;
+  g.clearRect(0,0,DW,DH); g.fillStyle='#fff'; g.fillRect(0,0,DW,DH);
+  g.fillStyle='#eeeeee';
+  g.fillRect(DX(0),DY(H),DX(RMIN)-DX(0),DY(0)-DY(H));
+  g.fillRect(DX(RMAX),DY(H),DX(DRV)-DX(RMAX),DY(0)-DY(H));
+  // cotas de altura
+  g.font='600 21px Montserrat, Arial, sans-serif';
+  for(let h=0;h<=H;h+=10){
+    const maj=h%50===0;
+    g.strokeStyle=maj?'#c7c7c7':'#efefef'; g.lineWidth=1;
+    g.beginPath();g.moveTo(DX(0),DY(h));g.lineTo(DX(DRV),DY(h));g.stroke();
+    g.strokeStyle='#111'; g.lineWidth=maj?2:1;
+    g.beginPath();g.moveTo(DP.l-(maj?20:11),DY(h));g.lineTo(DP.l,DY(h));g.stroke();
+    if(maj){g.fillStyle='#111';g.textAlign='right';g.textBaseline='middle';g.fillText(h,DP.l-27,DY(h));}
+  }
+  // cotas de radio
+  for(let r=0;r<=DRV;r+=10){
+    g.strokeStyle='#efefef'; g.lineWidth=1;
+    g.beginPath();g.moveTo(DX(r),DY(0));g.lineTo(DX(r),DY(H));g.stroke();
+    g.strokeStyle='#111'; g.lineWidth=1;
+    g.beginPath();g.moveTo(DX(r),DH-DP.b);g.lineTo(DX(r),DH-DP.b+11);g.stroke();
+  }
+  // las cotas que importan no caen todas en la grilla de 10: 75 es el radio maximo
+  [0,RMIN,50,RMAX].forEach(r=>{
+    g.strokeStyle='#c7c7c7'; g.lineWidth=1;
+    g.beginPath();g.moveTo(DX(r),DY(0));g.lineTo(DX(r),DY(H));g.stroke();
+    g.strokeStyle='#111'; g.lineWidth=2;
+    g.beginPath();g.moveTo(DX(r),DH-DP.b);g.lineTo(DX(r),DH-DP.b+20);g.stroke();
+    g.fillStyle='#111';g.textAlign='center';g.textBaseline='top';g.fillText(r,DX(r),DH-DP.b+28);
+  });
+  g.fillStyle='#6b6b6b'; g.font='600 19px Montserrat, Arial, sans-serif';
+  g.textAlign='center'; g.textBaseline='top';
+  g.fillText('RADIO EN MM · LA PIEZA SALE DEL DOBLE',DX(DRV/2),DH-DP.b+62);
+  g.save(); g.translate(32,DY(H/2)); g.rotate(-Math.PI/2);
+  g.textAlign='center'; g.textBaseline='middle'; g.fillText('ALTURA EN MM',0,0); g.restore();
+  // eje de giro y limites de la maquina
+  g.strokeStyle='#111'; g.lineWidth=2; g.setLineDash([12,8]);
+  g.beginPath();g.moveTo(DX(0),DY(0));g.lineTo(DX(0),DY(H));g.stroke(); g.setLineDash([]);
+  g.strokeRect(DX(RMIN),DY(H),DX(RMAX)-DX(RMIN),DY(0)-DY(H));
+  if(dfree&&dTop>0){
+    const top=Math.round(dTop);
+    g.fillStyle='rgba(208,2,27,.12)'; g.beginPath(); g.moveTo(DX(0),DY(0));
+    for(let h=0;h<=top;h++) g.lineTo(DX(dfree[h]),DY(h));
+    g.lineTo(DX(0),DY(top)); g.fill();
+    g.strokeStyle=RED; g.lineWidth=5; g.lineJoin='round'; g.beginPath();
+    for(let h=0;h<=top;h++){const a=DX(dfree[h]),b=DY(h); h?g.lineTo(a,b):g.moveTo(a,b);}
+    g.stroke();
+    g.fillStyle='#111'; g.font='700 25px Montserrat, Arial, sans-serif';
+    g.textAlign='left'; g.textBaseline='top';
+    g.fillText(top+' mm de alto · Ø '+Math.round(2*dfree[top])+' mm arriba',DX(0)+16,DP.t+6);
+  }else{
+    g.fillStyle='#a2a2a2'; g.font='600 25px Montserrat, Arial, sans-serif';
+    g.textAlign='center'; g.textBaseline='middle';
+    g.fillText('Deslizá de abajo hacia arriba',DX(DRV/2),DY(H/2)-20);
+    g.fillText('para trazar el borde de tu pieza',DX(DRV/2),DY(H/2)+20);
+  }
+}
+function dPos(e){const b=dcv.getBoundingClientRect();
+  return {x:(e.clientX-b.left)*DW/b.width, y:(e.clientY-b.top)*DH/b.height};}
+function dPut(P){
+  const r=Math.max(RMIN,Math.min(RMAX,dToR(P.x)));
+  const hi=Math.max(0,Math.min(H,Math.round(dToH(P.y))));
+  if(!dfree){dfree=new Float32Array(H+1); dfree.fill(r);}
+  if(dLast){
+    const a=Math.min(dLast.h,hi), b=Math.max(dLast.h,hi);
+    for(let k=a;k<=b;k++){
+      const u=b===a?1:(k-a)/(b-a);
+      dfree[k]=dLast.h<hi ? dLast.r+(r-dLast.r)*u : r+(dLast.r-r)*u;
+    }
+  } else dfree[hi]=r;
+  if(hi>dTop) for(let k=dTop+1;k<=hi;k++) if(!dLast) dfree[k]=r;
+  dTop=Math.max(dTop,hi); dLast={h:hi,r}; dDraw();
+}
+let dDown=false;
+dcv.addEventListener('pointerdown',e=>{dDown=true;dLast=null;dcv.setPointerCapture(e.pointerId);dPut(dPos(e));});
+dcv.addEventListener('pointermove',e=>{if(dDown)dPut(dPos(e));});
+['pointerup','pointercancel'].forEach(k=>dcv.addEventListener(k,()=>{dDown=false;dLast=null;}));
+function setDibujo(on){ $('dibujo').classList.toggle('on',on); if(on) dDraw(); }
+$('dibujar').onclick=()=>setDibujo(true);
+$('kDraw').onclick=()=>setDibujo(true);
+$('dBack').onclick=()=>setDibujo(false);
+$('dClear').onclick=()=>{dfree=null;dTop=0;dLast=null;dDraw();};
+$('dLoad').onclick=()=>{
+  if(!dfree||dTop<20){ $('dClear').focus(); return; }   // menos de 20 mm no es una pieza
+  const top=Math.round(dTop), q=new Float32Array(H+1);
+  for(let h=0;h<=H;h++) q[h]=dfree[Math.min(h,top)];
+  for(let pass=0;pass<4;pass++){ const o=Float32Array.from(q);
+    for(let h=1;h<H;h++) q[h]=(o[h-1]+2*o[h]+o[h+1])/4; }   // el dedo tiembla
+  for(let h=0;h<=H;h++) q[h]=Math.max(RMIN,Math.min(RMAX,q[h]));
+  queued={p:q,h:top};
+  setDibujo(false); setKiosk(true);
+};
+
 function loop(now){
   const dt=Math.min(.05,(now-lastT)/1000); lastT=now;
   if(recording){ requestAnimationFrame(loop); return; }
   tuneSS(dt);
   if(cine){ if(playing) cineStep(dt*speed); } else if(playing) t+=dt*speed;
+  // en modo evento, cada vez que el ciclo da la vuelta entra la pieza siguiente
+  if(kiosk&&!cine){ const cn=Math.floor(t/CYCLE); if(cn!==cycleN){ cycleN=cn; nextPiece(); } }
   update();
   if(cine) shotCam(SHOTS[ci],Math.min(1,cel/SHOTS[ci].dur));
   if(!cine&&tween){tween.k=Math.min(1,tween.k+dt/1.1);const e=1-Math.pow(1-tween.k,3);
@@ -1432,5 +1623,6 @@ function loop(now){
 update(); requestAnimationFrame(loop);
 })().catch(e=>{const l=document.getElementById('loading');if(l)l.textContent='No se pudo cargar el modelo: '+e.message;});
 </script>
+
 </body>
 </html>
