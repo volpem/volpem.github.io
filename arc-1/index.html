@@ -156,6 +156,29 @@ button:disabled{opacity:.45;cursor:default}
   </aside>
 </div>
 
+<script>
+/* Aviso de compatibilidad. En sintaxis vieja a proposito: si el script principal no compila
+   en un navegador antiguo, este igual corre y dice que pasa en vez de dejar todo en blanco. */
+(function(){
+  function msg(t){
+    var l=document.getElementById('loading');
+    if(!l) return;
+    l.textContent=t; l.style.whiteSpace='pre-line'; l.style.padding='0 28px';
+    l.style.textAlign='center'; l.style.lineHeight='1.6'; l.style.color='#d0021b';
+  }
+  window.addEventListener('error',function(e){
+    var m=(e&&e.message)||'';
+    if(/syntax|unexpected|token|reserved/i.test(m))
+      msg('Este navegador es demasiado viejo para el visor.\nProbá con Chrome o Firefox actualizados.');
+    else if(m) msg('No se pudo iniciar el visor.\n'+m);
+  },true);
+  try{
+    var c=document.createElement('canvas');
+    var gl=window.WebGLRenderingContext&&(c.getContext('webgl')||c.getContext('experimental-webgl'));
+    if(!gl) msg('Este equipo no tiene WebGL, que es lo que dibuja el visor en 3D.');
+  }catch(err){ msg('Este equipo no puede abrir WebGL, que es lo que dibuja el visor en 3D.'); }
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <div id="dibujo">
@@ -1039,7 +1062,7 @@ function update(){
   bedP.rotation.z=-theta; midP.rotation.z=-theta/2; husP.rotation.z=-theta; motP.rotation.z=-theta*36/20;
   groups.carroZ.position.z=zOff;
   groups.ejeX.position.set(dx,0,zOff);
-  sprP.position.set(0,0,zOff); if(Math.abs(dx-(sprP.userData.dx??1e9))>.05){bendSpring(dx);sprP.userData.dx=dx;}
+  sprP.position.set(0,0,zOff); if(Math.abs(dx-(sprP.userData.dx===undefined?1e9:sprP.userData.dx))>.05){bendSpring(dx);sprP.userData.dx=dx;}
   const n=Math.round(s.u*(NSU-1)), stroke=L[n]*6*2/TUBE_A;
   const reset=s.back?ease(s.back):0, sp=P0+stroke*(1-reset);
   groups.piston.position.copy(AX).multiplyScalar(sp);
@@ -1085,7 +1108,7 @@ if(matchMedia('(prefers-reduced-motion: reduce)').matches){speed=0.5;$('speed').
 OUTLINE.visible=false;
 const rt=new THREE.WebGLRenderTarget(4,4,{depthTexture:(()=>{const t=new THREE.DepthTexture();t.type=THREE.UnsignedIntType;return t;})(),depthBuffer:true});
 const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{tC:{value:rt.texture},tD:{value:rt.depthTexture},px:{value:new THREE.Vector2()},ink:{value:new THREE.Color(RED)},bg:{value:new THREE.Color('#ffffff')},mode:{value:0},proj:{value:new THREE.Vector2()}},
+  uniforms:{tC:{value:rt.texture},tD:{value:rt.depthTexture},px:{value:new THREE.Vector2()},ink:{value:new THREE.Color(RED)},bg:{value:new THREE.Color('#ffffff')},mode:{value:0},proj:{value:new THREE.Vector2()},aoOn:{value:1}},
   vertexShader:'varying vec2 vU;void main(){vU=uv;gl_Position=vec4(position.xy,0.,1.);}',
   fragmentShader:`uniform sampler2D tC;uniform sampler2D tD;uniform vec2 px;uniform vec3 ink;uniform vec3 bg;uniform float mode;varying vec2 vU;
    uniform vec2 proj;
@@ -1093,6 +1116,7 @@ const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial(
    vec3 VP(vec2 u,float z){return vec3((u*2.-1.)*proj*z,-z);}
    // oclusion ambiental por profundidad: oscurece rincones y juntas, que es lo que
    // delata un render sintetico cuando falta. Solo corre en el modo de materiales.
+   uniform float aoOn;
    float AO(vec2 u,float z){
      vec3 P=VP(u,z);
      vec3 N=normalize(cross(dFdx(P),dFdy(P)));
@@ -1120,7 +1144,7 @@ const post=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial(
       vec3 B=mix(vec3(.30,.315,.33),vec3(.76,.785,.81),pow(vU.y,.85));
       vec3 col=c.rgb+(1.-c.a)*B;
       float z=L(vU);
-      if(z<7000.) col*=AO(vU,z);
+      if(aoOn>.5&&z<7000.) col*=AO(vU,z);
       float vg=smoothstep(1.25,.35,length((vU-.5)*vec2(1.1,1.)));
       gl_FragColor=vec4(col*mix(.86,1.,vg),1.);return;}
     float d=L(vU);
@@ -1140,8 +1164,13 @@ const postScene=new THREE.Scene(), postCam=new THREE.OrthographicCamera(-1,1,1,-
 // maquina sola: si los cuadros tardan mas de 20 ms baja, y si quedan clavados en el vsync
 // prueba subir. Asi cada equipo llega a la maxima nitidez que le da el cuero sin bajar de
 // 60 fps, en vez de usar un numero fijo que es demasiado para uno y poco para otro.
-const SSMIN=1, SSMAX=2.2;
-let ssWant=1.5, capW=0, capH=0;
+// Modo liviano para equipos flojos: sin sombras, sin oclusion ambiental y sin
+// sobremuestreo. Se enciende solo cuando no hay WebGL2 (senal clara de GPU vieja) y
+// tambien se puede forzar con ?lite en la direccion.
+const LITE=(/[?&]lite\b/.test(location.search))||!renderer.capabilities.isWebGL2;
+if(LITE){ renderer.shadowMap.enabled=false; renderer.setPixelRatio(1); }
+const SSMIN=1, SSMAX=LITE?1:2.2;
+let ssWant=LITE?1:1.5, capW=0, capH=0;
 function applyRT(){
   const w=Math.max(1,Math.min(4096,capW||stage.clientWidth)), h=Math.max(1,Math.min(4096,capH||stage.clientHeight)), pr=renderer.getPixelRatio();
   const lim=Math.min(renderer.capabilities.maxTextureSize||4096,5600);
@@ -1165,6 +1194,7 @@ function tuneSS(dt){
   else if(ms<17.2 && ++probe>2) { ssWant=Math.min(SSMAX,ssWant+.1); probe=0; }
   if(Math.abs(ssWant-was)>.01) applyRT();
 }
+if(LITE) post.material.uniforms.aoOn.value=0;
 new ResizeObserver(resize).observe(stage); resize();
 document.getElementById('mats').onclick=()=>setMaterials(!pbrMode);
 
